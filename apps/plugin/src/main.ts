@@ -116,6 +116,10 @@ const execute=async(a:DesignAction)=>{
         const node=await targetNode(a.targetId);if(!node||node.type!=="TEXT")throw new Error("Target is not text");
         await figma.loadFontAsync(node.fontName as FontName);node.characters=a.text;return{actionId:a.id,success:true,nodeIds:[node.id]};
       }
+      case"set_component_property":{
+        const node=await targetNode(a.targetId);if(!node||node.type!=="INSTANCE")throw new Error("Target is not instance");
+        node.setProperties({[a.propertyName]:a.value});return{actionId:a.id,success:true,nodeIds:[node.id]};
+      }
       case"set_property":{
         const node=await targetNode(a.targetId)as any;if(!node)throw new Error("Target not found");
         if(a.property==="width"||a.property==="height"){const w=a.property==="width"?Number(a.value):node.width;const h=a.property==="height"?Number(a.value):node.height;node.resize(w,h)}
@@ -147,11 +151,7 @@ const execute=async(a:DesignAction)=>{
       case"replace_instance":{
         const old=await targetNode(a.targetId);if(!old||old.type!=="INSTANCE")throw new Error("Target is not instance");
         const c=await componentById(a.componentId);if(!c)throw new Error("Replacement component not found");
-        const fresh=c.createInstance();fresh.name=old.name;fresh.x=old.x;fresh.y=old.y;
-        const parent=old.parent;if(!parent||!("insertChild"in parent))throw new Error("Target cannot be replaced in its parent");
-        await (parent.type==="PAGE"?parent.loadAsync():Promise.resolve());
-        parent.insertChild(parent.children.indexOf(old),fresh);old.remove();
-        return{actionId:a.id,success:true,nodeIds:[fresh.id]};
+        old.swapComponent(c);return{actionId:a.id,success:true,nodeIds:[old.id]};
       }
       case"delete":{
         const node=await targetNode(a.targetId);if(!node)throw new Error("Target not found");node.remove();return{actionId:a.id,success:true};
