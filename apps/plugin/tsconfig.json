@@ -1,0 +1,5 @@
+{
+  "extends":"../../tsconfig.base.json",
+  "compilerOptions":{"lib":["ES2022","DOM"],"types":["@figma/plugin-typings"],"module":"ESNext"},
+  "include":["src/**/*.ts","src/**/*.d.ts"]
+}
