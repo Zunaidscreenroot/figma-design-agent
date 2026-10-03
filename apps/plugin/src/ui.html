@@ -1,0 +1,88 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Figma Design Agent</title>
+<style>
+:root{font-family:Inter,system-ui,sans-serif;color:#171717;background:#fff}
+body{margin:0;padding:16px}
+h1{font-size:16px;margin:0 0 4px}
+p{font-size:12px;color:#666;margin:0 0 14px}
+input,textarea{box-sizing:border-box;width:100%;border:1px solid #d6d6d6;border-radius:8px;padding:10px;font:inherit;margin:4px 0 10px}
+textarea{min-height:120px;resize:vertical}
+button{width:100%;padding:10px;border:0;border-radius:8px;margin:4px 0;cursor:pointer}
+#run{background:#111;color:#fff}
+#cancel{background:#eee}
+#status{font-size:12px;line-height:1.5;white-space:pre-wrap;margin-top:10px}
+pre{background:#f6f6f6;border-radius:8px;padding:8px;font-size:10px;max-height:220px;overflow:auto}
+</style>
+</head>
+<body>
+<h1>Figma Design Agent</h1>
+<p>Inspect → plan → execute → verify → repair</p>
+<label>Agent endpoint</label>
+<input id="endpoint" value="http://localhost:8787">
+<label>Design task</label>
+<textarea id="prompt" placeholder="Convert this desktop screen into mobile using the existing design system."></textarea>
+<button id="run">Run agent</button>
+<button id="cancel">Cancel</button>
+<div id="status">Ready.</div>
+<pre id="debug"></pre>
+<script>
+const state={running:false,prompt:"",context:null,screenshot:null};
+const $=id=>document.getElementById(id);
+const setStatus=t=>$("status").textContent=t;
+const setDebug=o=>$("debug").textContent=typeof o==="string"?o:JSON.stringify(o,null,2);
+const apiBase=()=>$("endpoint").value.replace(/\/$/,"");
+const plugin=msg=>parent.postMessage({pluginMessage:msg},"*");
+async function api(path,body){
+  const response=await fetch(apiBase()+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error||"Agent request failed");
+  return data;
+}
+$("run").onclick=()=>{
+  if(state.running)return;
+  state.prompt=$("prompt").value.trim();
+  if(!state.prompt){setStatus("Enter a task.");return}
+  state.running=true;setStatus("Inspecting Figma…");plugin({type:"get-context"});
+};
+$("cancel").onclick=()=>{state.running=false;setStatus("Cancelled.");};
+window.onmessage=async event=>{
+  const m=event.data.pluginMessage;if(!m)return;
+  try{
+    if(m.type==="context"){
+      state.context=m.payload;setDebug(m.payload);
+      if(!state.running)return;
+      setStatus("Planning…");
+      const plan=await api("/plan",{prompt:state.prompt,context:m.payload});
+      setDebug(plan);
+      if(!plan.actions?.length){state.running=false;setStatus("No safe actions generated.");return}
+      setStatus("Executing "+plan.actions.length+" action(s)…");
+      plugin({type:"execute-actions",actions:plan.actions});return;
+    }
+    if(m.type==="execution-report"){
+      setDebug(m.payload);
+      if(!state.running)return;
+      const failed=m.payload.results.filter(x=>!x.success);
+      if(failed.length){state.running=false;setStatus("Execution failed:\n"+failed.map(x=>x.error).join("\n"));return}
+      setStatus("Capturing the updated design…");plugin({type:"get-context"});return;
+    }
+    if(m.type==="capture"){
+      state.screenshot=m.payload;
+      setStatus("Visual + UX verification…");
+      const critique=await api("/critique",{prompt:state.prompt,context:state.context,screenshotDataUrl:state.screenshot});
+      setDebug(critique);
+      const blocking=critique.issues?.some(i=>i.severity==="error");
+      if(!blocking){state.running=false;setStatus("Complete. Verification gate passed.");return}
+      setStatus("Repairing detected issues…");
+      const repair=await api("/repair",{prompt:state.prompt,context:state.context,critique});
+      setDebug(repair);
+      if(!repair.actions?.length){state.running=false;setStatus("No safe repair actions generated.");return}
+      plugin({type:"execute-actions",actions:repair.actions});return;
+    }
+  }catch(error){state.running=false;setStatus(error?.message||String(error));}
+};
+</script>
+</body>
+</html>
