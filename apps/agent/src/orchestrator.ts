@@ -5,6 +5,7 @@ import type {
   DesignAction,
 } from "@figma-design-agent/core";
 import { validateActionPlan } from "@figma-design-agent/core";
+import { structuralCritique } from "./critics.js";
 import { config } from "./config.js";
 import { chat, extractJson } from "./provider.js";
 import {
@@ -121,19 +122,20 @@ export class AgentOrchestrator {
     context: AgentContext,
     screenshotDataUrl?: string,
   ): Promise<CritiqueResult> {
+    const structural = structuralCritique(context);
     if (!config.apiKey || !config.model) {
       return {
-        passed: true,
-        score: 80,
+        passed: structural.passed,
+        score: structural.score,
         issues: [
+          ...structural.issues,
           {
             severity: "info",
             code: "HEURISTIC_ONLY",
-            message:
-              "Model-backed visual critique is disabled because no LLM provider is configured.",
+            message: "Model-backed visual critique is disabled because no LLM provider is configured.",
           },
         ],
-        decisions: [],
+        decisions: structural.decisions,
       };
     }
 
@@ -144,12 +146,20 @@ export class AgentOrchestrator {
         ]
       : buildCritiquePrompt(goal, context);
 
-    return extractJson<CritiqueResult>(
+    const modelCritique = extractJson<CritiqueResult>(
       await chat([
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userContent as never },
       ]),
     );
+    const issues = [...structural.issues, ...modelCritique.issues];
+    const hasError = issues.some(issue => issue.severity === "error");
+    return {
+      passed: !hasError && modelCritique.passed && structural.passed,
+      score: Math.min(structural.score ?? 100, modelCritique.score ?? 100),
+      issues,
+      decisions: [...structural.decisions, ...modelCritique.decisions],
+    };
   }
 
   async repair(
