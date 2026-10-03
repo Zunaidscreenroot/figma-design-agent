@@ -166,7 +166,9 @@ figma.ui.onmessage=async(message:any)=>{
     if(message.type==="execute-actions"){
       const results=[] as any[];
       for(const action of message.actions as DesignAction[])results.push(await execute(action));
-      const report:ExecutionReport={success:results.every(r=>r.success),results};
+      const success=results.every(r=>r.success);
+      if(success)figma.commitUndo();
+      const report:ExecutionReport={success,results};
       figma.ui.postMessage({type:"execution-report",payload:report});return;
     }
     if(message.type==="select-node"){
