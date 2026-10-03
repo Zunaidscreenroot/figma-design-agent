@@ -186,13 +186,10 @@ export class AgentOrchestrator {
     }
 
     const plan = extractJson<ActionPlan>(
-      await chat([
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: buildRepairPrompt(goal, context, critique),
-        },
-      ]),
+      (await chat([
+        { role: "system", content: buildSystemPrompt(await loadSkills()) },
+        { role: "user", content: buildRepairPrompt(goal, context, critique) },
+      ])).content,
     );
 
     const issues = validateActionPlan(plan, context, config.maxActions);
