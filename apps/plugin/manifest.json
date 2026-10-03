@@ -3,7 +3,11 @@
   "id":"figma-design-agent-zunaidscreenroot",
   "api":"1.0.0",
   "main":"dist/code.js",
+  "ui":"dist/ui.html",
   "editorType":["figma"],
   "documentAccess":"dynamic-page",
-  "networkAccess":{"allowedDomains":["http://localhost:8787","https://openrouter.ai"]}
+  "networkAccess":{
+    "allowedDomains":["none"],
+    "devAllowedDomains":["http://localhost:8787"]
+  }
 }
