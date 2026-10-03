@@ -165,7 +165,25 @@ figma.ui.onmessage=async(message:any)=>{
     if(message.type==="get-context"){figma.ui.postMessage({type:"context",payload:await collectContext()});return}
     if(message.type==="execute-actions"){
       const results=[] as any[];
-      for(const action of message.actions as DesignAction[])results.push(await execute(action));
+      const outputs=new Map<string,string>();
+      const resolveRef=(value:string)=>{
+        if(!value.startsWith("$"))return value;
+        const resolved=outputs.get(value.slice(1));
+        if(!resolved)throw new Error(`Unresolved symbolic node reference: ${value}`);
+        return resolved;
+      };
+      for(const action of message.actions as DesignAction[]){
+        try{
+          const resolved={...action} as any;
+          if("targetId"in resolved)resolved.targetId=resolveRef(resolved.targetId);
+          if("parentId"in resolved&&resolved.parentId)resolved.parentId=resolveRef(resolved.parentId);
+          const result=await execute(resolved as DesignAction);
+          results.push(result);
+          if(result.success&&result.nodeIds?.[0])outputs.set(action.id,result.nodeIds[0]);
+        }catch(error){
+          results.push({actionId:action.id,success:false,error:error instanceof Error?error.message:"Unknown symbolic reference error"});
+        }
+      }
       const success=results.every(r=>r.success);
       if(success)figma.commitUndo();
       const report:ExecutionReport={success,results};
