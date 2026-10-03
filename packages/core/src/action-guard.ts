@@ -9,8 +9,8 @@ export const guardAction=(a:DesignAction):string[]=>{
   if("targetId"in a&&a.targetId&&!a.targetId.trim())issues.push("targetId is empty");
   if("width"in a&&(!finite(a.width)||a.width<=0))issues.push("width must be finite and positive");
   if("height"in a&&(!finite(a.height)||a.height<=0))issues.push("height must be finite and positive");
-  if("x"in a&&!finite(a.x))issues.push("x must be finite");
-  if("y"in a&&!finite(a.y))issues.push("y must be finite");
+  if("x"in a&&a.x!==undefined&&!finite(a.x))issues.push("x must be finite");
+  if("y"in a&&a.y!==undefined&&!finite(a.y))issues.push("y must be finite");
   return issues;
 };
 
