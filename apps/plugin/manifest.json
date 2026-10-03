@@ -1,0 +1,9 @@
+{
+  "name":"Figma Design Agent",
+  "id":"figma-design-agent-zunaidscreenroot",
+  "api":"1.0.0",
+  "main":"dist/code.js",
+  "editorType":["figma"],
+  "documentAccess":"dynamic-page",
+  "networkAccess":{"allowedDomains":["http://localhost:8787","https://openrouter.ai"]}
+}
