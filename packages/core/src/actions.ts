@@ -47,6 +47,12 @@ export type DesignAction =
       text: string;
     })
   | (ActionBase & {
+      action: "set_component_property";
+      targetId: string;
+      propertyName: string;
+      value: string | boolean;
+    })
+  | (ActionBase & {
       action: "set_property";
       targetId: string;
       property:
