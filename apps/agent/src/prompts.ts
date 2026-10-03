@@ -54,6 +54,8 @@ Return an ActionPlan JSON object:
 Important:
 - Use only IDs present in the context.
 - When creating content inside a frame, prefer create_instance if a relevant component exists.
+- Use set_component_property for real instance properties such as text, boolean, instance-swap or variant choices when the property definition is supplied.
+- Use replace_instance only when an existing instance should become another component; preserve overrides.
 - Do not create dozens of primitive nodes when one existing component can satisfy the intent.
 - For a mobile conversion, preserve content priority while changing layout behavior.
 `;
