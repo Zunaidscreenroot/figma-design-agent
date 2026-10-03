@@ -1,0 +1,191 @@
+import type {
+  ActionPlan,
+  AgentContext,
+  CritiqueResult,
+  DesignAction,
+} from "@figma-design-agent/core";
+import { validateActionPlan } from "@figma-design-agent/core";
+import { config } from "./config.js";
+import { chat, extractJson } from "./provider.js";
+import {
+  SYSTEM_PROMPT,
+  buildCritiquePrompt,
+  buildPlanPrompt,
+  buildRepairPrompt,
+} from "./prompts.js";
+
+const fallbackPlan = (goal: string, context: AgentContext): ActionPlan => {
+  const root = context.selectedNode;
+  if (!root) {
+    return {
+      version: "1",
+      goal,
+      strategy: "No selection available; ask the user to select a frame.",
+      actions: [],
+      decisions: [],
+      assumptions: ["A target frame is required."],
+      stopConditions: ["Stop when no target frame exists."],
+    };
+  }
+
+  const lower = goal.toLowerCase();
+  const actions: DesignAction[] = [];
+
+  if (lower.includes("mobile") || lower.includes("responsive")) {
+    actions.push({
+      id: "layout-1",
+      action: "set_layout",
+      targetId: root.id,
+      mode: "VERTICAL",
+      gap: 16,
+      padding: { top: 16, right: 20, bottom: 24, left: 20 },
+      primaryAxisSizingMode: "AUTO",
+      counterAxisSizingMode: "FIXED",
+      description: "Establish a predictable mobile vertical flow.",
+    });
+    actions.push({
+      id: "width-1",
+      action: "resize",
+      targetId: root.id,
+      width: 390,
+      height: root.bounds?.height ?? 844,
+      description: "Set a representative mobile viewport width.",
+      dependsOn: ["layout-1"],
+    });
+  }
+
+  if (lower.includes("title") || lower.includes("heading")) {
+    const titleNode = findFirstText(root);
+    if (titleNode) {
+      actions.push({
+        id: "title-1",
+        action: "set_property",
+        targetId: titleNode.id,
+        property: "name",
+        value: titleNode.name,
+        description: "Preserve the title node while the model is unavailable.",
+      });
+    }
+  }
+
+  return {
+    version: "1",
+    goal,
+    strategy: "Deterministic fallback mode. Configure an LLM provider for model-backed planning.",
+    actions,
+    decisions: [],
+    assumptions: ["No model-backed provider was configured."],
+    stopConditions: ["Stop after safe structural edits."],
+  };
+};
+
+const findFirstText = (
+  node: AgentContext["selectedNode"],
+): AgentContext["selectedNode"] => {
+  if (!node) return undefined;
+  if (node.type === "TEXT") return node;
+  for (const child of node.children) {
+    const match = findFirstText(child);
+    if (match) return match;
+  }
+  return undefined;
+};
+
+export class AgentOrchestrator {
+  async plan(goal: string, context: AgentContext): Promise<ActionPlan> {
+    let plan: ActionPlan;
+
+    if (config.apiKey && config.model) {
+      plan = extractJson<ActionPlan>(
+        await chat([
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: buildPlanPrompt(goal, context) },
+        ]),
+      );
+    } else {
+      plan = fallbackPlan(goal, context);
+    }
+
+    const issues = validateActionPlan(plan, context, config.maxActions);
+    if (issues.some((issue) => issue.severity === "error")) {
+      throw new Error(
+        `Action plan rejected: ${issues.map((issue) => issue.message).join("; ")}`,
+      );
+    }
+
+    return plan;
+  }
+
+  async critique(
+    goal: string,
+    context: AgentContext,
+    screenshotDataUrl?: string,
+  ): Promise<CritiqueResult> {
+    if (!config.apiKey || !config.model) {
+      return {
+        passed: true,
+        score: 80,
+        issues: [
+          {
+            severity: "info",
+            code: "HEURISTIC_ONLY",
+            message:
+              "Model-backed visual critique is disabled because no LLM provider is configured.",
+          },
+        ],
+        decisions: [],
+      };
+    }
+
+    const userContent = screenshotDataUrl
+      ? [
+          { type: "text" as const, text: buildCritiquePrompt(goal, context, screenshotDataUrl) },
+          { type: "image_url" as const, image_url: { url: screenshotDataUrl } },
+        ]
+      : buildCritiquePrompt(goal, context);
+
+    return extractJson<CritiqueResult>(
+      await chat([
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userContent as never },
+      ]),
+    );
+  }
+
+  async repair(
+    goal: string,
+    context: AgentContext,
+    critique: CritiqueResult,
+  ): Promise<ActionPlan> {
+    if (!config.apiKey || !config.model) {
+      return {
+        version: "1",
+        goal,
+        strategy: "No repair generated because model-backed repair is disabled.",
+        actions: [],
+        decisions: [],
+        assumptions: [],
+        stopConditions: ["Configure an LLM provider to enable repairs."],
+      };
+    }
+
+    const plan = extractJson<ActionPlan>(
+      await chat([
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: buildRepairPrompt(goal, context, critique),
+        },
+      ]),
+    );
+
+    const issues = validateActionPlan(plan, context, config.maxActions);
+    if (issues.some((issue) => issue.severity === "error")) {
+      throw new Error(
+        `Repair plan rejected: ${issues.map((issue) => issue.message).join("; ")}`,
+      );
+    }
+
+    return plan;
+  }
+}
