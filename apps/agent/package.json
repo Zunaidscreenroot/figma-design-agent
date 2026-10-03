@@ -4,7 +4,8 @@
   "private":true,
   "type":"module",
   "scripts":{
-    "dev":"node --env-file=../../.env --import=tsx src/server.ts",
+    "dev":"npm run build:core && node --env-file=../../.env --import=tsx src/server.ts",
+    "build:core":"npm run build --workspace=@figma-design-agent/core",
     "build":"tsc -p tsconfig.build.json",
     "typecheck":"tsc -p tsconfig.json --noEmit",
     "test:openrouter":"node --env-file=../../.env --import=tsx src/test-openrouter.ts"
