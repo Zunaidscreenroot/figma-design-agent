@@ -1,17 +1,19 @@
 {
-  "name": "figma-design-agent",
-  "private": true,
-  "version": "0.1.0",
-  "description": "Evidence-first agent runtime for high-quality Figma design generation and editing.",
-  "workspaces": ["packages/*", "apps/*"],
-  "scripts": {
-    "build": "npm run build -ws",
-    "typecheck": "npm run typecheck -ws",
-    "dev:agent": "npm --workspace @figma-design-agent/agent run dev",
-    "build:plugin": "npm --workspace @figma-design-agent/plugin run build",
-    "test": "npm run test -ws"
+  "name":"figma-design-agent",
+  "private":true,
+  "version":"0.1.0",
+  "description":"Evidence-first agent runtime for high-quality Figma design generation and editing.",
+  "workspaces":["packages/*","apps/*"],
+  "scripts":{
+    "typecheck:core":"npm run typecheck --workspace=@figma-design-agent/core",
+    "typecheck:agent":"npm run typecheck --workspace=@figma-design-agent/agent",
+    "typecheck:plugin":"npm run typecheck --workspace=@figma-design-agent/plugin",
+    "typecheck":"npm run typecheck:core && npm run typecheck:agent && npm run typecheck:plugin",
+    "build:core":"npm run build --workspace=@figma-design-agent/core",
+    "build:agent":"npm run build --workspace=@figma-design-agent/agent",
+    "build:plugin":"npm run build --workspace=@figma-design-agent/plugin",
+    "build":"npm run build:core && npm run build:agent && npm run build:plugin",
+    "dev:agent":"npm --workspace @figma-design-agent/agent run dev"
   },
-  "engines": {
-    "node": ">=20"
-  }
+  "engines":{"node":">=20"}
 }
