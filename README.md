@@ -111,7 +111,9 @@ The first implementation supports:
 - mobile conversion workflow
 - project-specific skill files
 
-The development build deliberately uses Figma's current dynamic-page-compatible async APIs for document/node/variable access. Figma's current docs require async access patterns in dynamic-page mode and recommend avoiding unnecessary full-document loading for large files. citeturn151423search0turn628597search5
+The development build deliberately uses Figma's current dynamic-page-compatible async APIs for document/node/variable access. Full-document component scanning is intentionally conservative for the first version and can be optimized for large files.
+
+citeturn151423search0turn628597search5
 
 ## Roadmap
 
