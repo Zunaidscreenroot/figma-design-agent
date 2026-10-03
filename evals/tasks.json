@@ -1,0 +1,22 @@
+[
+  {
+    "id":"mobile-conversion",
+    "goal":"Convert a selected desktop screen into a mobile layout using the existing design system.",
+    "checks":["mobile viewport","preserve content hierarchy","reuse components","avoid unnecessary recreation"]
+  },
+  {
+    "id":"component-reuse",
+    "goal":"Create a content card using an existing component when one is available.",
+    "checks":["component instance","correct variant","no duplicate primitive card"]
+  },
+  {
+    "id":"minimal-edit",
+    "goal":"Change one existing text property without rebuilding the screen.",
+    "checks":["single-target mutation","unaffected nodes preserved"]
+  },
+  {
+    "id":"responsive-review",
+    "goal":"Review a selected mobile screen for structural and obvious UX issues.",
+    "checks":["hierarchy","spacing","auto-layout","accessibility"]
+  }
+]
