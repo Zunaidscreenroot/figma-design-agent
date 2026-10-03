@@ -1,0 +1,17 @@
+{
+  "name": "figma-design-agent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Evidence-first agent runtime for high-quality Figma design generation and editing.",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "build": "npm run build -ws",
+    "typecheck": "npm run typecheck -ws",
+    "dev:agent": "npm --workspace @figma-design-agent/agent run dev",
+    "build:plugin": "npm --workspace @figma-design-agent/plugin run build",
+    "test": "npm run test -ws"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
