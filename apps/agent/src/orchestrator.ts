@@ -4,7 +4,7 @@ import type {
   CritiqueResult,
   DesignAction,
 } from "@figma-design-agent/core";
-import { validateActionPlan } from "@figma-design-agent/core";
+import { guardPlan, validateActionPlan } from "@figma-design-agent/core";
 import { structuralCritique } from "./critics.js";
 import { config } from "./config.js";
 import { chat, extractJson } from "./provider.js";
@@ -108,6 +108,10 @@ export class AgentOrchestrator {
     }
 
     const issues = validateActionPlan(plan, context, config.maxActions);
+    const guardErrors = guardPlan(plan, config.maxActions);
+    if (guardErrors.length) {
+      throw new Error(`Action plan guard rejected: ${guardErrors.join("; ")}`);
+    }
     if (issues.some((issue) => issue.severity === "error")) {
       throw new Error(
         `Action plan rejected: ${issues.map((issue) => issue.message).join("; ")}`,
@@ -190,6 +194,10 @@ export class AgentOrchestrator {
     );
 
     const issues = validateActionPlan(plan, context, config.maxActions);
+    const guardErrors = guardPlan(plan, config.maxActions);
+    if (guardErrors.length) {
+      throw new Error(`Repair plan guard rejected: ${guardErrors.join("; ")}`);
+    }
     if (issues.some((issue) => issue.severity === "error")) {
       throw new Error(
         `Repair plan rejected: ${issues.map((issue) => issue.message).join("; ")}`,
