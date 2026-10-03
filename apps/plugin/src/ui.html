@@ -29,7 +29,7 @@ pre{background:#f6f6f6;border-radius:8px;padding:8px;font-size:10px;max-height:2
 <div id="status">Ready.</div>
 <pre id="debug"></pre>
 <script>
-const state={running:false,prompt:"",context:null,screenshot:null};
+const state={running:false,prompt:"",context:null,screenshot:null,phase:"idle",repairCount:0};
 const $=id=>document.getElementById(id);
 const setStatus=t=>$("status").textContent=t;
 const setDebug=o=>$("debug").textContent=typeof o==="string"?o:JSON.stringify(o,null,2);
@@ -45,7 +45,7 @@ $("run").onclick=()=>{
   if(state.running)return;
   state.prompt=$("prompt").value.trim();
   if(!state.prompt){setStatus("Enter a task.");return}
-  state.running=true;setStatus("Inspecting Figma…");plugin({type:"get-context"});
+  state.running=true;state.phase="planning";state.repairCount=0;setStatus("Inspecting Figma…");plugin({type:"get-context"});
 };
 $("cancel").onclick=()=>{state.running=false;setStatus("Cancelled.");};
 window.onmessage=async event=>{
@@ -54,19 +54,30 @@ window.onmessage=async event=>{
     if(m.type==="context"){
       state.context=m.payload;setDebug(m.payload);
       if(!state.running)return;
-      setStatus("Planning…");
-      const plan=await api("/plan",{prompt:state.prompt,context:m.payload});
-      setDebug(plan);
-      if(!plan.actions?.length){state.running=false;setStatus("No safe actions generated.");return}
-      setStatus("Executing "+plan.actions.length+" action(s)…");
-      plugin({type:"execute-actions",actions:plan.actions});return;
+      if(state.phase==="planning"){
+        setStatus("Planning…");
+        const plan=await api("/plan",{prompt:state.prompt,context:m.payload});
+        setDebug(plan);
+        if(!plan.actions?.length){state.running=false;setStatus("No safe actions generated.");return}
+        setStatus("Executing "+plan.actions.length+" action(s)…");
+        plugin({type:"execute-actions",actions:plan.actions});
+        return;
+      }
+      if(state.phase==="verifying"){
+        setStatus("Capturing the updated design…");
+        plugin({type:"capture-selection"});
+        return;
+      }
     }
     if(m.type==="execution-report"){
       setDebug(m.payload);
       if(!state.running)return;
       const failed=m.payload.results.filter(x=>!x.success);
       if(failed.length){state.running=false;setStatus("Execution failed:\n"+failed.map(x=>x.error).join("\n"));return}
-      setStatus("Capturing the updated design…");plugin({type:"get-context"});return;
+      const firstNode=m.payload.results.flatMap(x=>x.nodeIds||[])[0];
+      if(firstNode)plugin({type:"select-node",nodeId:firstNode});
+      state.phase="verifying";
+      setStatus("Re-reading the updated design…");plugin({type:"get-context"});return;
     }
     if(m.type==="capture"){
       state.screenshot=m.payload;
@@ -81,7 +92,7 @@ window.onmessage=async event=>{
       if(!repair.actions?.length){state.running=false;setStatus("No safe repair actions generated.");return}
       plugin({type:"execute-actions",actions:repair.actions});return;
     }
-  }catch(error){state.running=false;setStatus(error?.message||String(error));}
+  }catch(error){state.running=false;state.phase="idle";setStatus(error?.message||String(error));}
 };
 </script>
 </body>
