@@ -100,10 +100,10 @@ export class AgentOrchestrator {
 
     if (config.apiKey && config.model) {
       plan = extractJson<ActionPlan>(
-        await chat([
+        (await chat([
           { role: "system", content: buildSystemPrompt(await loadSkills()) },
           { role: "user", content: buildPlanPrompt(goal, context, rankComponents(goal, context)) },
-        ]),
+        ])).content,
       );
     } else {
       plan = fallbackPlan(goal, context);
@@ -153,10 +153,10 @@ export class AgentOrchestrator {
       : buildCritiquePrompt(goal, context);
 
     const modelCritique = extractJson<CritiqueResult>(
-      await chat([
+      (await chat([
         { role: "system", content: buildSystemPrompt(await loadSkills()) },
         { role: "user", content: userContent as never },
-      ]),
+      ])).content,
     );
     const issues = [...structural.issues, ...modelCritique.issues];
     const hasError = issues.some(issue => issue.severity === "error");
