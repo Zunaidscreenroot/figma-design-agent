@@ -1,6 +1,7 @@
 import type{ActionPlan,DesignAction}from"./actions.js";
 
 const finite=(v:number)=>Number.isFinite(v)&&Math.abs(v)<1_000_000;
+const ref=(v:string)=>v.startsWith("$")?v.slice(1):null;
 
 export const guardAction=(a:DesignAction):string[]=>{
   const issues:string[]=[];
@@ -16,6 +17,14 @@ export const guardAction=(a:DesignAction):string[]=>{
 export const guardPlan=(plan:ActionPlan,maxActions=80)=>{
   const errors:string[]=[];
   if(plan.actions.length>maxActions)errors.push(`too many actions: ${plan.actions.length}`);
-  for(const action of plan.actions)for(const issue of guardAction(action))errors.push(`${action.id}: ${issue}`);
+  const ids=new Set(plan.actions.map(a=>a.id));
+  if(ids.size!==plan.actions.length)errors.push("action IDs must be unique");
+
+  for(const action of plan.actions){
+    for(const issue of guardAction(action))errors.push(`${action.id}: ${issue}`);
+    if("targetId"in action){const target=ref(action.targetId);if(target&&!ids.has(target))errors.push(`${action.id}: unknown symbolic target ${action.targetId}`)}
+    if("parentId"in action&&action.parentId){const parent=ref(action.parentId);if(parent&&!ids.has(parent))errors.push(`${action.id}: unknown symbolic parent ${action.parentId}`)}
+    for(const dep of action.dependsOn??[])if(!ids.has(dep))errors.push(`${action.id}: unknown dependency ${dep}`);
+  }
   return errors;
 };
