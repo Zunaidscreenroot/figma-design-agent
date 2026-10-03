@@ -8,8 +8,10 @@ import { guardPlan, validateActionPlan } from "@figma-design-agent/core";
 import { structuralCritique } from "./critics.js";
 import { config } from "./config.js";
 import { chat, extractJson } from "./provider.js";
+import { loadSkills } from "./skills.js";
+import { rankComponents } from "./retrieval.js";
 import {
-  SYSTEM_PROMPT,
+  buildSystemPrompt,
   buildCritiquePrompt,
   buildPlanPrompt,
   buildRepairPrompt,
@@ -99,8 +101,8 @@ export class AgentOrchestrator {
     if (config.apiKey && config.model) {
       plan = extractJson<ActionPlan>(
         await chat([
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: buildPlanPrompt(goal, context) },
+          { role: "system", content: buildSystemPrompt(await loadSkills()) },
+          { role: "user", content: buildPlanPrompt(goal, context, rankComponents(goal, context)) },
         ]),
       );
     } else {
@@ -152,7 +154,7 @@ export class AgentOrchestrator {
 
     const modelCritique = extractJson<CritiqueResult>(
       await chat([
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: buildSystemPrompt(await loadSkills()) },
         { role: "user", content: userContent as never },
       ]),
     );
