@@ -16,34 +16,24 @@ import {
   buildPlanPrompt,
   buildRepairPrompt,
 } from "./prompts.js";
-import {
-  formatMemoryForPrompt,
-  resolveTaskType,
-  retrieveDesignMemory,
-  type RetrievedMemory,
-  type UxTaskType,
-} from "./memory.js";
+const resolveTaskType = (explicit: unknown, goal: string): string => {
+  const valid = new Set(["polished_screen", "variations", "content_states", "ux_audit", "mobile_conversion", "other"]);
+  if (typeof explicit === "string" && valid.has(explicit)) return explicit;
+  const value = goal.toLowerCase();
+  if (/audit|heuristic|consisten|accessibility|critique|review/.test(value)) return "ux_audit";
+  if (/variation|variant|alternate|alternative|options/.test(value)) return "variations";
+  if (/content|copy|microcopy|labels|helper text|empty state|error message/.test(value)) return "content_states";
+  if (/mobile|responsive|desktop to mobile|small screen/.test(value)) return "mobile_conversion";
+  return "polished_screen";
+};
 
-const multimodalContent = (text: string, memory: RetrievedMemory, currentScreenshot?: string) => {
-  const parts: Array<
-    | { type: "text"; text: string }
-    | { type: "image_url"; image_url: { url: string } }
-  > = [{ type: "text", text }];
-
-  if (currentScreenshot) {
-    parts.push({ type: "text", text: "Current output screenshot. Evaluate this against the task and approved reference examples." });
-    parts.push({ type: "image_url", image_url: { url: currentScreenshot } });
-  }
-
-  for (const reference of memory.referenceImages) {
-    parts.push({
-      type: "text",
-      text: "Previously accepted visual reference for a related task: " + reference.goal,
-    });
-    parts.push({ type: "image_url", image_url: { url: reference.url } });
-  }
-
-  return parts.length === 1 ? text : parts;
+const multimodalContent = (text: string, currentScreenshot?: string) => {
+  if (!currentScreenshot) return text;
+  return [
+    { type: "text", text },
+    { type: "text", text: "Current output screenshot. Evaluate this against the task and its stated requirements." },
+    { type: "image_url", image_url: { url: currentScreenshot } },
+  ];
 };
 
 const fallbackPlan = (goal: string, context: AgentContext): ActionPlan => {
@@ -127,15 +117,14 @@ export class AgentOrchestrator {
   async plan(goal: string, context: AgentContext, requestedTaskType?: string): Promise<ActionPlan> {
     let plan: ActionPlan;
     const taskType = resolveTaskType(requestedTaskType, goal);
-    const memory = await retrieveDesignMemory(goal, taskType, config.projectKey);
-    const systemPrompt = buildSystemPrompt(await loadSkills(), formatMemoryForPrompt(memory));
+    const systemPrompt = buildSystemPrompt(await loadSkills());
 
     if (config.apiKey && config.model) {
       const prompt = buildPlanPrompt(goal, context, rankComponents(goal, context), taskType);
       plan = extractJson<ActionPlan>(
         (await chat([
           { role: "system", content: systemPrompt },
-          { role: "user", content: multimodalContent(prompt, memory) as never },
+          { role: "user", content: multimodalContent(prompt) as never },
         ])).content,
       );
     } else {
@@ -160,8 +149,6 @@ export class AgentOrchestrator {
     screenshotDataUrl?: string,
     requestedTaskType?: string,
   ): Promise<CritiqueResult> {
-    const taskType: UxTaskType = resolveTaskType(requestedTaskType, goal);
-    const memory = await retrieveDesignMemory(goal, taskType, config.projectKey);
     const structural = structuralCritique(context);
     if (!config.apiKey || !config.model) {
       return {
@@ -180,10 +167,10 @@ export class AgentOrchestrator {
     }
 
     const prompt = buildCritiquePrompt(goal, context, screenshotDataUrl);
-    const userContent = multimodalContent(prompt, memory, screenshotDataUrl);
+    const userContent = multimodalContent(prompt, screenshotDataUrl);
     const modelCritique = extractJson<CritiqueResult>(
       (await chat([
-        { role: "system", content: buildSystemPrompt(await loadSkills(), formatMemoryForPrompt(memory)) },
+        { role: "system", content: buildSystemPrompt(await loadSkills()) },
         { role: "user", content: userContent as never },
       ])).content,
     );
@@ -203,8 +190,6 @@ export class AgentOrchestrator {
     critique: CritiqueResult,
     requestedTaskType?: string,
   ): Promise<ActionPlan> {
-    const taskType: UxTaskType = resolveTaskType(requestedTaskType, goal);
-    const memory = await retrieveDesignMemory(goal, taskType, config.projectKey);
     if (!config.apiKey || !config.model) {
       return {
         version: "1",
@@ -220,8 +205,8 @@ export class AgentOrchestrator {
     const prompt = buildRepairPrompt(goal, context, critique);
     const plan = extractJson<ActionPlan>(
       (await chat([
-        { role: "system", content: buildSystemPrompt(await loadSkills(), formatMemoryForPrompt(memory)) },
-        { role: "user", content: multimodalContent(prompt, memory) as never },
+        { role: "system", content: buildSystemPrompt(await loadSkills()) },
+        { role: "user", content: multimodalContent(prompt) as never },
       ])).content,
     );
 
