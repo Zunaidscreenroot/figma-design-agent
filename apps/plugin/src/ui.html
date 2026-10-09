@@ -148,7 +148,7 @@ window.onmessage=async event=>{
       const warnings=checks.filter(item=>item.status==="warn");
       const passed=checks.filter(item=>item.status==="pass");
       const hasSelection=checks.some(item=>item.name==="Selection"&&item.status==="pass");
-      const writePassed=checks.some(item=>item.name==="Temporary write-action test"&&item.status==="pass");
+      const writePassed=checks.some(item=>item.name==="Create/resize/append frame"&&item.status==="pass")&&checks.some(item=>item.name==="Auto-layout mutation"&&item.status==="pass")&&checks.some(item=>item.name==="Create/edit text"&&item.status==="pass");
       const screenshotPassed=checks.some(item=>item.name==="Screenshot export"&&item.status==="pass");
       const canRun=failed.length===0&&hasSelection&&writePassed&&screenshotPassed;
       const summary=`${passed.length} passed · ${warnings.length} warning(s) · ${failed.length} failed`;
