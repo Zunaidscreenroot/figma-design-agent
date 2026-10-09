@@ -29,14 +29,23 @@ const findFirstText = (node: AgentContext["selectedNode"]): AgentContext["select
   for (const child of node.children) { const match = findFirstText(child); if (match) return match; }
   return undefined;
 };
+
+const validScreenshotDataUrls = (input: string[] | undefined) =>
+  (input ?? []).filter((value) => typeof value === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)).slice(0, 3);
+
 export class AgentOrchestrator {
-  async plan(goal: string, context: AgentContext): Promise<ActionPlan> {
+  async plan(goal: string, context: AgentContext, screenshotDataUrls?: string[]): Promise<ActionPlan> {
     let plan: ActionPlan;
     if (config.apiKey && config.model) {
       const [skills, reviewedMemory] = await Promise.all([loadSkills(), retrieveReviewedExamples(goal, context)]);
+      const text = buildPlanPrompt(goal, context, rankComponents(goal, context), reviewedMemory);
+      const screenshots = validScreenshotDataUrls(screenshotDataUrls);
+      const userContent = screenshots.length
+        ? [{ type: "text" as const, text }, ...screenshots.map((url) => ({ type: "image_url" as const, image_url: { url } }))]
+        : text;
       plan = extractJson<ActionPlan>((await chat([
         { role: "system", content: buildSystemPrompt(skills) },
-        { role: "user", content: buildPlanPrompt(goal, context, rankComponents(goal, context), reviewedMemory) },
+        { role: "user", content: userContent as never },
       ])).content);
     } else plan = fallbackPlan(goal, context);
     const issues = validateActionPlan(plan, context, config.maxActions);
@@ -45,6 +54,7 @@ export class AgentOrchestrator {
     if (issues.some((issue) => issue.severity === "error")) throw new Error("Action plan rejected: " + issues.map((issue) => issue.message).join("; "));
     return plan;
   }
+
   async critique(goal: string, context: AgentContext, screenshotDataUrl?: string): Promise<CritiqueResult> {
     const structural = structuralCritique(context);
     if (!config.apiKey || !config.model) return { passed: structural.passed, score: structural.score,
@@ -59,6 +69,7 @@ export class AgentOrchestrator {
     const hasError = issues.some((issue) => issue.severity === "error");
     return { passed: !hasError && modelCritique.passed && structural.passed, score: Math.min(structural.score ?? 100, modelCritique.score ?? 100), issues, decisions: [...structural.decisions, ...modelCritique.decisions] };
   }
+
   async repair(goal: string, context: AgentContext, critique: CritiqueResult): Promise<ActionPlan> {
     if (!config.apiKey || !config.model) return { version: "1", goal, strategy: "No repair generated because model-backed repair is disabled.", actions: [], decisions: [], assumptions: [], stopConditions: ["Configure an LLM provider to enable repairs."] };
     const plan = extractJson<ActionPlan>((await chat([
