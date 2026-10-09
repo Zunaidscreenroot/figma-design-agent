@@ -218,7 +218,7 @@ figma.ui.onmessage = async (message: any) => {
       return "data:image/png;base64," + btoa(binary);
     };
     if (message.type === "capture-references") {
-      const selected = figma.currentPage.selection.filter((node) => node.type !== "DOCUMENT" && node.type !== "PAGE").slice(0, 3);
+      const selected = figma.currentPage.selection.slice(0, 3);
       const captures = [];
       for (const node of selected) {
         try {
