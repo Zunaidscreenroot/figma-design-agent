@@ -7,7 +7,7 @@ import type {
 import { guardPlan, validateActionPlan } from "@figma-design-agent/core";
 import { structuralCritique } from "./critics.js";
 import { config } from "./config.js";
-import { chat, extractJson, type ChatMessage } from "./provider.js";
+import { chat, extractJson } from "./provider.js";
 import { loadSkills } from "./skills.js";
 import { rankComponents } from "./retrieval.js";
 import {
