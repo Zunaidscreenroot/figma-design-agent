@@ -82,7 +82,7 @@ Build the plugin:
 npm run build:plugin
 ```
 
-Then import `apps/plugin/manifest.json` from Figma's Development plugins menu.
+Then import `apps/plugin/manifest.json` from Figma's Development plugins menu. On first launch, run **Figma-only health check** before using the AI workflow. This probe tests Figma API access and temporary frame/text/layout/screenshot actions without calling an AI model; the workflow unlocks after the core checks pass.
 
 ## Safety and accuracy principles
 
