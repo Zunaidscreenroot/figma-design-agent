@@ -104,7 +104,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;ba
 </details>
 
 <script>
-const state={running:false,prompt:"",taskType:"polished_screen",context:null,screenshot:null,phase:"idle",repairCount:0,lastCritique:null,lastReview:null};
+const state={running:false,prompt:"",taskType:"polished_screen",context:null,screenshot:null,phase:"idle",repairCount:0,lastCritique:null,lastReview:null,currentPlan:null,originalSelectionId:null,outputNodeId:null};
 const $=id=>document.getElementById(id);
 const setStatus=t=>$("status").textContent=t;
 const setPill=(t,good=false)=>{$("status-pill").textContent=t;$("status-pill").className="pill"+(good?" good":"");};
@@ -157,6 +157,9 @@ $("run").onclick=()=>{
   state.repairCount=0;
   state.context=null;
   state.screenshot=null;
+  state.currentPlan=null;
+  state.originalSelectionId=null;
+  state.outputNodeId=null;
   state.lastCritique=null;
   state.lastReview=null;
   $("feedback-panel").hidden=true;
@@ -183,12 +186,14 @@ window.onmessage=async event=>{
     }
     if(m.type==="context"){
       state.context=m.payload;
+      if(state.phase==="planning")state.originalSelectionId=m.payload.selectedNodes?.[0]?.id||null;
       setDebug({selection:m.payload.selectedNodes?.map(n=>({id:n.id,name:n.name,type:n.type})),components:m.payload.components?.length,tokens:m.payload.tokens?.length});
       if(!state.running)return;
       if(state.phase==="planning"){
         setStatus("Retrieving memory and planning native Figma actions…");
         const plan=await api("/plan",{prompt:state.prompt,taskType:state.taskType,context:m.payload});
         setDebug(plan);
+        state.currentPlan=plan;
         if(!plan.actions?.length){
           state.running=false;setPill("No actions");
           setStatus("No safe actions generated. Check that a target frame is selected and that the task permits a concrete change.");
@@ -214,8 +219,11 @@ window.onmessage=async event=>{
         setStatus("Some actions failed:\n"+failed.map(x=>x.error).join("\n"));
         return;
       }
-      const firstNode=results.flatMap(x=>x.nodeIds||[])[0];
-      if(firstNode)plugin({type:"select-node",nodeId:firstNode});
+      const createsOutput=new Set((state.currentPlan?.actions||[]).filter(a=>a.action==="create_frame"||a.action==="create_section").map(a=>a.id));
+      const createdFrame=results.find(x=>createsOutput.has(x.actionId)&&x.nodeIds?.[0])?.nodeIds?.[0];
+      if(createdFrame)state.outputNodeId=createdFrame;
+      const targetNodeId=state.outputNodeId||state.originalSelectionId||results.flatMap(x=>x.nodeIds||[])[0];
+      if(targetNodeId)plugin({type:"select-node",nodeId:targetNodeId});
       state.phase="verifying";
       setStatus("Re-reading the updated design…");
       plugin({type:"get-context"});
@@ -249,6 +257,7 @@ window.onmessage=async event=>{
         makeReviewReady(critique,"The critic found issues but no safe automatic repair was produced. Review this draft and leave feedback.");
         return;
       }
+      state.currentPlan=repair;
       plugin({type:"execute-actions",actions:repair.actions});
       return;
     }
