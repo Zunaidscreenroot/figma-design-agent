@@ -211,12 +211,29 @@ figma.ui.onmessage = async (message: any) => {
       if (node && node.type !== "DOCUMENT" && node.type !== "PAGE") { figma.currentPage.selection = [node as SceneNode]; figma.viewport.scrollAndZoomIntoView([node as SceneNode]); }
       return;
     }
+    const exportDataUrl = async (node: SceneNode, maxWidth: number) => {
+      const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "WIDTH", value: Math.min(maxWidth, Math.max(720, node.width)) } });
+      let binary = "";
+      for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+      return "data:image/png;base64," + btoa(binary);
+    };
+    if (message.type === "capture-references") {
+      const selected = figma.currentPage.selection.filter((node) => node.type !== "DOCUMENT" && node.type !== "PAGE").slice(0, 3);
+      const captures = [];
+      for (const node of selected) {
+        try {
+          captures.push({ nodeId: node.id, name: node.name, dataUrl: await exportDataUrl(node, 1200) });
+        } catch (error) {
+          captures.push({ nodeId: node.id, name: node.name, error: error instanceof Error ? error.message : "Export failed" });
+        }
+      }
+      figma.ui.postMessage({ type: "reference-captures", payload: captures });
+      return;
+    }
     if (message.type === "capture-selection") {
       const node = figma.currentPage.selection[0];
       if (!node) { figma.ui.postMessage({ type: "capture", payload: null }); return; }
-      const bytes = await node.exportAsync({ format: "PNG", constraint: { type: "WIDTH", value: Math.min(1600, Math.max(800, node.width)) } });
-      let binary = ""; for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-      figma.ui.postMessage({ type: "capture", payload: "data:image/png;base64," + btoa(binary) });
+      figma.ui.postMessage({ type: "capture", payload: await exportDataUrl(node, 1600) });
     }
   } catch (error) { figma.ui.postMessage({ type: "plugin-error", payload: error instanceof Error ? error.message : "Unknown plugin error" }); }
 };
