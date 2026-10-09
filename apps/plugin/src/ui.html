@@ -46,6 +46,8 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;ba
 <label class="section-label" for="endpoint">Agent endpoint</label>
 <input id="endpoint" value="http://localhost:8787" spellcheck="false">
 <p class="help">Keep the agent server running while Figma is open.</p>
+<button id="health-check" class="secondary" style="width:100%;margin-top:10px">Run Figma-only health check</button>
+<p class="help">Tests Figma access and reversible create/edit/export actions directly. No AI model or agent server is called.</p>
 
 <label class="section-label" for="task-type">What are we doing?</label>
 <select id="task-type">
@@ -98,9 +100,20 @@ function makeReviewReady(critique,message){
   setStatus(message);
   setPill(critique&&critique.passed?"QA passed":"Review needed",Boolean(critique&&critique.passed));
 }
+$("health-check").onclick=()=>{
+  if(state.running){
+    setStatus("Cancel the current AI workflow before running diagnostics.");
+    return;
+  }
+  setPill("Checking Figma");
+  setStatus("Running Figma-only checks. No AI request will be sent.");
+  setDebug("Checking Figma API access, selection, component/token read access, frame/text/layout mutations, and screenshot export.");
+  plugin({type:"health-check"});
+};
 $("run").onclick=()=>{
   if(state.running)return;
-  state.prompt=$("prompt").value.trim();
+  const promptField=$("prompt");
+  state.prompt=typeof promptField?.value==="string"?promptField.value.trim():"";
   state.taskType=$("task-type").value;
   if(!state.prompt){setStatus("Enter a task brief first.");return;}
   state.running=true;
@@ -127,6 +140,18 @@ window.onmessage=async event=>{
   const m=event.data.pluginMessage;
   if(!m)return;
   try{
+    if(m.type==="health-check-report"){
+      const checks=Array.isArray(m.payload)?m.payload:[];
+      const failed=checks.filter(item=>item.status==="fail");
+      const warnings=checks.filter(item=>item.status==="warn");
+      const passed=checks.filter(item=>item.status==="pass");
+      const summary=`${passed.length} passed · ${warnings.length} warning(s) · ${failed.length} failed`;
+      const lines=checks.map(item=>`${item.status==="pass"?"PASS":item.status==="warn"?"WARN":"FAIL"} · ${item.name}: ${item.detail}`);
+      setDebug({summary,checks});
+      setPill(failed.length?"Health check failed":warnings.length?"Health check warnings":"Figma ready",failed.length===0);
+      setStatus("Figma-only health check complete. "+summary+"\n\n"+lines.join("\n"));
+      return;
+    }
     if(m.type==="plugin-error"){
       state.running=false;
       setPill("Error");
