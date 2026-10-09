@@ -64,7 +64,7 @@ In Figma: Plugins → Development → Import plugin from manifest → select `ap
 
 ## Current limitations
 
-- Design context and review feedback are not persisted between runs.
+- Design context, review history and user preferences are not persisted between runs.
 - The local development server is not bundled for deployment.
 - Team-library search/import is not implemented yet.
 - Visual critique depends on a multimodal model.
