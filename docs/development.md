@@ -18,13 +18,17 @@ npm install
 
 Copy `.env.example` to `.env`.
 
-Configure OpenRouter:
+Configure OpenRouter and keep the local agent on loopback with an explicit browser-origin allowlist:
 
 ```env
 OPENROUTER_API_KEY=...
 LLM_BASE_URL=https://openrouter.ai/api/v1
 LLM_MODEL=your-model
+AGENT_HOST=127.0.0.1
+AGENT_ALLOWED_ORIGINS=https://www.figma.com,https://figma.com,http://localhost:8787,http://127.0.0.1:8787
 ```
+
+The development API binds to loopback by default and rejects browser origins outside this allowlist. If your authorized Figma runtime reports a different origin, add that exact origin to `AGENT_ALLOWED_ORIGINS`. Do not use `*` for a server that can access private Supabase data or spend model credits. This local API is not ready for public internet deployment; a hosted deployment needs proper user authentication, request authorization and rate limiting.
 
 Optional persistent memory:
 
