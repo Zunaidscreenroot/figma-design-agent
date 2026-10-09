@@ -7,14 +7,7 @@
   "editorType": ["figma"],
   "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": [
-      "http://localhost:8787",
-      "http://127.0.0.1:8787"
-    ],
-    "reasoning": "Connects to the local development agent on the user's machine for UX analysis and screen generation.",
-    "devAllowedDomains": [
-      "http://localhost:8787",
-      "http://127.0.0.1:8787"
-    ]
+    "allowedDomains": ["none"],
+    "devAllowedDomains": ["http://localhost:8787"]
   }
 }
