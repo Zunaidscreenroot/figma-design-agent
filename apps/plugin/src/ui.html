@@ -172,6 +172,11 @@ $("health-check").onclick=()=>{
 };
 $("run").onclick=()=>{
   if(state.running)return;
+  if(!state.figmaHealthPassed||!state.agentConnected||!state.agentModelConfigured){
+    setStatus("Run both checks first: Figma-only health check, then local agent connection check.");
+    refreshRunButton();
+    return;
+  }
   const promptField=$("prompt");
   state.prompt=typeof promptField?.value==="string"?promptField.value.trim():"";
   state.taskType=$("task-type").value;
