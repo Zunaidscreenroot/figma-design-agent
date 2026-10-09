@@ -15,6 +15,7 @@ export const validateActionPlan=(plan:ActionPlan,context:AgentContext,maxActions
   const knownComponents=new Set(context.project.components.map(component=>component.id));
   const knownTokens=new Set(context.project.tokens.map(token=>token.id));
 
+  const explicitRemovalIntent=/\b(delete|remove|erase|clear out|discard)\b/i.test(plan.goal);
   for(const action of plan.actions){
     if("targetId"in action&&action.targetId&&!action.targetId.startsWith("$")&&!knownNodes.has(action.targetId)){
       issues.push({severity:"error",code:"UNKNOWN_TARGET",message:`Unknown target node ${action.targetId}.`,nodeId:action.targetId,suggestedFix:"Use an existing node ID from context or a symbolic reference to an earlier action."});
@@ -27,6 +28,11 @@ export const validateActionPlan=(plan:ActionPlan,context:AgentContext,maxActions
     }
     if(action.action==="bind_variable"&&!knownTokens.has(action.variableId)){
       issues.push({severity:"error",code:"UNKNOWN_VARIABLE",message:`Unknown variable ${action.variableId}.`});
+    }
+    if(action.action==="delete"&&action.targetId===context.selectedNode?.id){
+      issues.push({severity:"error",code:"ROOT_DELETE_FORBIDDEN",message:"The selected source frame cannot be deleted by an autonomous plan.",nodeId:action.targetId,suggestedFix:"Create a new draft or remove only explicitly named child elements."});
+    } else if(action.action==="delete"&&!explicitRemovalIntent){
+      issues.push({severity:"error",code:"DELETE_REQUIRES_INTENT",message:"Deleting a node requires explicit removal intent in the user's request.",nodeId:action.targetId,suggestedFix:"Revise the plan to preserve existing nodes unless removal was requested."});
     }
   }
   return issues;
