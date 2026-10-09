@@ -47,7 +47,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;ba
 <input id="endpoint" value="http://localhost:8787" spellcheck="false">
 <p class="help">Keep the agent server running while Figma is open.</p>
 <button id="health-check" class="secondary" style="width:100%;margin-top:10px">Run Figma-only health check</button>
-<p class="help">Tests Figma access and reversible create/edit/export actions directly. No AI model or agent server is called.</p>
+<p class="help">Tests Figma access and reversible create/edit/export actions directly. No AI model or agent server is called. The AI workflow unlocks after a successful check.</p>
 
 <label class="section-label" for="task-type">What are we doing?</label>
 <select id="task-type">
@@ -61,7 +61,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;ba
 
 <label class="section-label" for="prompt">Task brief</label>
 <textarea id="prompt" placeholder="Example: Create a polished loan-offer comparison screen from the selected frame. Preserve existing components, show the total cost clearly, make the recommended option easy to compare, and include relevant validation states."></textarea>
-<button id="run" class="primary">Run UX workflow</button>
+<button id="run" class="primary" disabled>Run UX workflow (health check required)</button>
 <button id="cancel" class="secondary" style="width:100%;margin-top:6px">Cancel current run</button>
 
 <div class="status-card">
@@ -105,6 +105,8 @@ $("health-check").onclick=()=>{
     setStatus("Cancel the current AI workflow before running diagnostics.");
     return;
   }
+  $("run").disabled=true;
+  $("run").textContent="Run UX workflow (health check required)";
   setPill("Checking Figma");
   setStatus("Running Figma-only checks. No AI request will be sent.");
   setDebug("Checking Figma API access, selection, component/token read access, frame/text/layout mutations, and screenshot export.");
@@ -145,11 +147,24 @@ window.onmessage=async event=>{
       const failed=checks.filter(item=>item.status==="fail");
       const warnings=checks.filter(item=>item.status==="warn");
       const passed=checks.filter(item=>item.status==="pass");
+      const hasSelection=checks.some(item=>item.name==="Selection"&&item.status==="pass");
+      const writePassed=checks.some(item=>item.name==="Temporary write-action test"&&item.status==="pass");
+      const screenshotPassed=checks.some(item=>item.name==="Screenshot export"&&item.status==="pass");
+      const canRun=failed.length===0&&hasSelection&&writePassed&&screenshotPassed;
       const summary=`${passed.length} passed · ${warnings.length} warning(s) · ${failed.length} failed`;
       const lines=checks.map(item=>`${item.status==="pass"?"PASS":item.status==="warn"?"WARN":"FAIL"} · ${item.name}: ${item.detail}`);
-      setDebug({summary,checks});
-      setPill(failed.length?"Health check failed":warnings.length?"Health check warnings":"Figma ready",failed.length===0);
-      setStatus("Figma-only health check complete. "+summary+"\n\n"+lines.join("\n"));
+      setDebug({summary,checks,aiWorkflowUnlocked:canRun});
+      $("run").disabled=!canRun;
+      $("run").textContent=canRun?"Run UX workflow":"Run UX workflow (health check required)";
+      setPill(failed.length?"Health check failed":canRun?"Figma ready":"Select a frame",canRun);
+      const nextStep=failed.length
+        ?"Resolve the failed Figma checks before adding model requests."
+        :!hasSelection
+          ?"Select a frame, then run the Figma-only health check again."
+          :!canRun
+            ?"The required write or screenshot check did not pass. Inspect the failed checks above."
+            :"Figma actions passed. The AI workflow is now unlocked.";
+      setStatus("Figma-only health check complete. "+summary+"\n"+nextStep+"\n\n"+lines.join("\n"));
       return;
     }
     if(m.type==="plugin-error"){
