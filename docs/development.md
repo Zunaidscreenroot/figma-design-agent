@@ -51,16 +51,17 @@ In Figma: Plugins → Development → Import plugin from manifest → select `ap
 
 ## Runtime flow
 
-1. Select a frame in Figma.
-2. Open Figma Design Agent.
-3. Choose a task mode and enter the task.
-4. The plugin sends structured context to the local agent API.
-5. The API returns a bounded ActionPlan using the selected model and applicable design skills.
-6. Figma executes the actions.
-7. The plugin re-reads the result and captures a screenshot.
-8. The API runs structural and model-backed visual critique.
-9. Up to two repair cycles can run automatically.
-10. Review the result directly in Figma.
+1. Open Figma Design Agent and run **Figma-only health check**. This does not call the local agent server or an AI model.
+2. The plugin probes selection/context access, component and token reads, temporary frame/text/layout changes, screenshot export, optional component instantiation, and cleanup.
+3. Select a target frame. The AI workflow unlocks only after core health checks pass.
+4. Choose a task mode and enter the task.
+5. The plugin sends structured context to the local agent API.
+6. The API returns a bounded ActionPlan using the selected model and applicable design skills.
+7. Figma executes the actions.
+8. The plugin re-reads the result and captures a screenshot.
+9. The API runs structural and model-backed visual critique.
+10. Up to two repair cycles can run automatically.
+11. Review the result directly in Figma.
 
 ## Current limitations
 
