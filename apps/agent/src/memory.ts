@@ -97,14 +97,13 @@ const request = async <T>(
   init: RequestInit = {},
 ): Promise<{ data: T; headers: Headers }> => {
   if (!enabled()) throw new Error("Supabase memory is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on the agent server.");
+  const headers = new Headers(init.headers);
+  headers.set("apikey", config.supabaseServiceRoleKey);
+  headers.set("Authorization", "Bearer " + config.supabaseServiceRoleKey);
+  headers.set("Content-Type", "application/json");
   const response = await fetch(config.supabaseUrl + "/rest/v1/" + path, {
     ...init,
-    headers: {
-      apikey: config.supabaseServiceRoleKey,
-      Authorization: "Bearer " + config.supabaseServiceRoleKey,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
+    headers,
   });
   const raw = await response.text();
   if (!response.ok) {
