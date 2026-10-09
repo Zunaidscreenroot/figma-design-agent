@@ -32,21 +32,40 @@ const compactNode = (node: DesignNode | undefined, depth: number, budget: { rema
 
 const summarizeContext = (context: AgentContext) => {
   const root = context.selectedNode;
-  const nodeNames: string[] = [];
+  const nodeDetails: string[] = [];
   const componentNames = new Set<string>();
+  const describe = (node: DesignNode) => {
+    const parts = [node.name + " (" + node.type + "/" + node.role + ")"];
+    if (node.bounds) parts.push(Math.round(node.bounds.width) + "x" + Math.round(node.bounds.height));
+    if (node.layout?.mode && node.layout.mode !== "NONE") {
+      parts.push("Auto Layout " + node.layout.mode);
+      if (node.layout.gap !== undefined) parts.push("gap " + node.layout.gap);
+      if (node.layout.padding) parts.push("padding " + [node.layout.padding.top, node.layout.padding.right, node.layout.padding.bottom, node.layout.padding.left].join("/"));
+    }
+    if (node.style?.fontSize !== undefined) parts.push("font " + node.style.fontSize + "px");
+    if (node.style?.fontFamily) parts.push(node.style.fontFamily + (node.style.fontStyle ? " " + node.style.fontStyle : ""));
+    if (node.style?.fills?.length) parts.push("fill " + node.style.fills.slice(0, 2).join("/"));
+    if (node.style?.cornerRadius !== undefined) parts.push("radius " + node.style.cornerRadius);
+    if (node.component?.name) {
+      componentNames.add(node.component.name);
+      parts.push("component " + node.component.name);
+    }
+    if (node.text?.trim()) parts.push("copy " + JSON.stringify(node.text.trim().slice(0, 90)));
+    return parts.join("; ");
+  };
   const walk = (node: DesignNode | undefined) => {
-    if (!node || nodeNames.length >= 100) return;
-    nodeNames.push(node.name + " (" + node.role + ")");
-    if (node.component?.name) componentNames.add(node.component.name);
+    if (!node || nodeDetails.length >= 70) return;
+    nodeDetails.push(describe(node));
     for (const child of node.children) walk(child);
   };
-  walk(root);
+  if (root) walk(root);
   const dimensions = root?.bounds ? Math.round(root.bounds.width) + "x" + Math.round(root.bounds.height) : "unknown dimensions";
   return [
-    "Screen: " + (root?.name ?? "No selected frame"), "Viewport: " + dimensions,
-    "Structure: " + nodeNames.slice(0, 45).join(", "),
-    "Existing components used: " + Array.from(componentNames).slice(0, 25).join(", "),
-    "Available tokens: " + context.project.tokens.slice(0, 35).map((token) => token.name).join(", "),
+    "Screen: " + (root?.name ?? "No selected frame"),
+    "Viewport: " + dimensions,
+    "Hierarchical visual/structural evidence (up to 70 nodes):\n" + nodeDetails.join("\n"),
+    "Existing components used: " + Array.from(componentNames).slice(0, 35).join(", "),
+    "Available tokens: " + context.project.tokens.slice(0, 50).map((token) => token.name + (token.value === undefined ? "" : "=" + JSON.stringify(token.value))).join(", "),
   ].join("\n");
 };
 
