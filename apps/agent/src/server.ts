@@ -2,7 +2,6 @@ import{createServer,type IncomingMessage,type ServerResponse}from"node:http";
 import{AgentOrchestrator}from"./orchestrator.js";
 import{compileContext}from"./context-compiler.js";
 import{config}from"./config.js";
-import{getMemoryStatus,resolveTaskType,saveDesignReview}from"./memory.js";
 
 const agent=new AgentOrchestrator();
 
@@ -43,11 +42,7 @@ const server=createServer(async(req,res)=>{
   }
   try{
     if(req.method==="GET"&&req.url==="/health"){
-      send(res,200,{ok:true,modelConfigured:Boolean(config.apiKey&&config.model),model:config.model||null,memoryConfigured:getMemoryStatus().configured},origin);
-      return;
-    }
-    if(req.method==="GET"&&req.url==="/memory/status"){
-      send(res,200,getMemoryStatus(),origin);
+      send(res,200,{ok:true,modelConfigured:Boolean(config.apiKey&&config.model),model:config.model||null},origin);
       return;
     }
 
@@ -60,26 +55,6 @@ const server=createServer(async(req,res)=>{
     }
     if(req.method==="POST"&&req.url==="/repair"){
       send(res,200,await agent.repair(body.prompt,contextOf(body.context),body.critique,body.taskType),origin);return;
-    }
-    if(req.method==="POST"&&req.url==="/memory/feedback"){
-      const allowed=["accepted","needs_changes","rejected"];
-      if(!allowed.includes(body.feedbackType))throw new Error("feedbackType must be accepted, needs_changes or rejected.");
-      if(typeof body.prompt!=="string"||!body.prompt.trim())throw new Error("A task prompt is required to save feedback.");
-      if(body.feedbackType!=="accepted"&&!(typeof body.feedbackText==="string"&&body.feedbackText.trim())){
-        throw new Error("Please describe what should change before submitting this review.");
-      }
-      const saved=await saveDesignReview({
-        goal:body.prompt,
-        taskType:resolveTaskType(body.taskType,body.prompt),
-        reviewStatus:body.feedbackType,
-        feedbackText:typeof body.feedbackText==="string"?body.feedbackText:undefined,
-        makeRule:body.makeRule===true,
-        projectKey:typeof body.projectKey==="string"?body.projectKey:undefined,
-        context:contextOf(body.context),
-        critique:body.critique,
-        screenshotDataUrl:typeof body.screenshotDataUrl==="string"?body.screenshotDataUrl:undefined
-      });
-      send(res,201,{ok:true,...saved},origin);return;
     }
     send(res,404,{error:"Not found"},origin);
   }catch(error){
