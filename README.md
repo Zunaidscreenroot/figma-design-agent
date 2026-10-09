@@ -128,4 +128,4 @@ The development build deliberately uses Figma's current dynamic-page-compatible 
 
 ## Review and iteration
 
-The plugin performs structural and model-backed quality checks and can run up to two bounded repair cycles. Review feedback is session-only in this version and is not persisted between runs. No database or Supabase setup is required.
+The plugin performs structural and model-backed quality checks and can run up to two bounded repair cycles. The agent displays per-run critique results, but does not persist review history or preferences between runs. No database or Supabase setup is required.
