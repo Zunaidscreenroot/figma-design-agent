@@ -51,10 +51,10 @@ const server=createServer(async(req,res)=>{
       send(res,200,await agent.plan(body.prompt,contextOf(body.context),body.taskType),origin);return;
     }
     if(req.method==="POST"&&req.url==="/critique"){
-      send(res,200,await agent.critique(body.prompt,contextOf(body.context),body.screenshotDataUrl,body.taskType),origin);return;
+      send(res,200,await agent.critique(body.prompt,contextOf(body.context),body.screenshotDataUrl),origin);return;
     }
     if(req.method==="POST"&&req.url==="/repair"){
-      send(res,200,await agent.repair(body.prompt,contextOf(body.context),body.critique,body.taskType),origin);return;
+      send(res,200,await agent.repair(body.prompt,contextOf(body.context),body.critique),origin);return;
     }
     send(res,404,{error:"Not found"},origin);
   }catch(error){
