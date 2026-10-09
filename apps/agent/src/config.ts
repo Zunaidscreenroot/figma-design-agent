@@ -9,5 +9,9 @@ export const config={
   retries:Number(process.env.LLM_RETRIES??1),
   retryBaseMs:Number(process.env.LLM_RETRY_BASE_MS??1200),
   maxActions:Number(process.env.MAX_ACTIONS_PER_PLAN??80),
-  maxRepairLoops:Number(process.env.MAX_REPAIR_LOOPS??2)
+  maxRepairLoops:Number(process.env.MAX_REPAIR_LOOPS??2),
+  supabaseUrl:(process.env.SUPABASE_URL??"").replace(/\/$/,""),
+  supabaseServiceRoleKey:process.env.SUPABASE_SERVICE_ROLE_KEY??"",
+  projectKey:process.env.UX_MEMORY_PROJECT_KEY??"default",
+  memoryVisualReferences:(process.env.UX_MEMORY_VISUAL_REFERENCES??"false").toLowerCase()==="true"
 };
