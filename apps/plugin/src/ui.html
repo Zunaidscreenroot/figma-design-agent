@@ -33,7 +33,7 @@ pre{background:#f6f6f6;border-radius:8px;padding:8px;font-size:10px;max-height:1
 </div>
 <pre id="debug"></pre>
 <script>
-const state={running:false,prompt:"",context:null,screenshot:null,phase:"idle",repairCount:0,taskId:null,memoryEnabled:false};
+const state={running:false,prompt:"",context:null,screenshot:null,phase:"idle",repairCount:0,taskId:null,memoryEnabled:false,planActions:[],targetFrameId:null};
 const $=id=>document.getElementById(id);
 const setStatus=text=>$("status").textContent=text;
 const setDebug=value=>$("debug").textContent=typeof value==="string"?value:JSON.stringify(value,null,2);
@@ -60,7 +60,7 @@ async function requestReview(verdict){
 $("accept").onclick=()=>requestReview("accepted");$("needsChanges").onclick=()=>requestReview("needs_changes");
 $("run").onclick=()=>{
   if(state.running)return;state.prompt=$("prompt").value.trim();if(!state.prompt){setStatus("Enter a task.");return}
-  state.running=true;state.phase="planning";state.repairCount=0;state.taskId=null;state.memoryEnabled=false;state.context=null;state.screenshot=null;
+  state.running=true;state.phase="planning";state.repairCount=0;state.taskId=null;state.memoryEnabled=false;state.context=null;state.screenshot=null;state.planActions=[];state.targetFrameId=null;
   $("review").hidden=true;$("reviewNote").value="";$("accept").disabled=false;$("needsChanges").disabled=false;
   setStatus("Inspecting selected Figma context…");plugin({type:"get-context"});
 };
@@ -73,11 +73,13 @@ window.onmessage=async event=>{
       setDebug({file:message.payload.fileName,selected:message.payload.selectedNodes?.map(node=>({id:node.id,name:node.name,width:node.width,height:node.height})),components:message.payload.components?.length,tokens:message.payload.tokens?.length});
       if(!state.running)return;
       if(state.phase==="planning"){
+        state.targetFrameId=message.payload.selectedNodes?.[0]?.id||null;
         setStatus("Creating task record and retrieving reviewed patterns…");
         const start=await api("/tasks/start",{prompt:state.prompt,context:message.payload});state.taskId=start.taskId||null;state.memoryEnabled=Boolean(start.memoryEnabled);
         setStatus("Planning with selected-frame context"+(state.memoryEnabled?" and project memory":"")+"…");
         const plan=await api("/plan",{prompt:state.prompt,context:message.payload,taskId:state.taskId});setDebug(plan);
         if(!plan.actions?.length){showReview("No safe actions were generated. Review the task and improve the instruction.");return}
+        state.planActions=plan.actions;
         setStatus("Executing "+plan.actions.length+" native Figma action(s)…");plugin({type:"execute-actions",actions:plan.actions});return;
       }
       if(state.phase==="verifying"){setStatus("Re-reading updated structure before screenshot verification…");plugin({type:"capture-selection"});return}
@@ -86,7 +88,13 @@ window.onmessage=async event=>{
       setDebug(message.payload);if(!state.running)return;
       const failed=message.payload.results.filter(result=>!result.success);
       if(failed.length){showReview("Execution stopped because "+failed.length+" action(s) failed:\n"+failed.map(result=>result.error).join("\n"));return}
-      const firstNode=message.payload.results.flatMap(result=>result.nodeIds||[])[0];if(firstNode)plugin({type:"select-node",nodeId:firstNode});
+      // Keep the whole screen selected. Only select a newly created root frame; do not accidentally critique a text or child component.
+      const rootFrameAction=state.planActions.find(action=>action.action==="create_frame"&&(!action.parentId||action.parentId===state.targetFrameId));
+      if(rootFrameAction){
+        const rootResult=message.payload.results.find(result=>result.actionId===rootFrameAction.id);
+        const rootId=rootResult?.nodeIds?.[0];
+        if(rootId){state.targetFrameId=rootId;plugin({type:"select-node",nodeId:rootId});}
+      }
       state.phase="verifying";setStatus("Re-reading the updated design…");plugin({type:"get-context"});return;
     }
     if(message.type==="capture"){
@@ -98,7 +106,7 @@ window.onmessage=async event=>{
       state.repairCount+=1;setStatus("Repair attempt "+state.repairCount+" of 2 for issues supported by verification…");
       const repair=await api("/repair",{prompt:state.prompt,context:state.context,critique});setDebug(repair);
       if(!repair.actions?.length){await api("/tasks/ready",{taskId:state.taskId});showReview("No safe repair actions were generated. The remaining issue needs your review.");return}
-      plugin({type:"execute-actions",actions:repair.actions});return;
+      state.planActions=repair.actions;plugin({type:"execute-actions",actions:repair.actions});return;
     }
     if(message.type==="plugin-error")showReview("Figma plugin error: "+message.payload);
   }catch(error){state.running=false;state.phase="review";setStatus(error?.message||String(error));}
