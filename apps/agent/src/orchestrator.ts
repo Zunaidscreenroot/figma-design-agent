@@ -32,8 +32,8 @@ const responseText = (messages: ChatMessage[]) => messages.map((message) => {
   return message.role + ": " + message.content
     .filter((part) => part.type === "text")
     .map((part) => part.text)
-    .join("\\n");
-}).join("\\n\\n").slice(0, 18000);
+    .join("\n");
+}).join("\n\n").slice(0, 18000);
 
 const chatJson = async <T>(messages: ChatMessage[], stage: string): Promise<T> => {
   const initial = await chat(messages);
@@ -49,9 +49,9 @@ const chatJson = async <T>(messages: ChatMessage[], stage: string): Promise<T> =
       {
         role: "user",
         content:
-          "The previous response could not be parsed as a JSON object. Re-issue the response required by the original request below as one valid JSON object. If you cannot satisfy a field, use a safe empty/default value permitted by the schema. Do not explain.\\n\\nOriginal request (text only; attached images omitted):\\n" +
+          "The previous response could not be parsed as a JSON object. Re-issue the response required by the original request below as one valid JSON object. If you cannot satisfy a field, use a safe empty/default value permitted by the schema. Do not explain.\n\nOriginal request (text only; attached images omitted):\n" +
           requestSummary +
-          "\\n\\nInvalid prior response:\\n" +
+          "\n\nInvalid prior response:\n" +
           initial.content.slice(0, 8000),
       },
     ];
@@ -60,8 +60,8 @@ const chatJson = async <T>(messages: ChatMessage[], stage: string): Promise<T> =
       const recovered = await chat(recoveryMessages);
       try {
         return extractJson<T>(recovered.content);
-      } catch (recoveryError) {
-        const preview = recovered.content.slice(0, 500).replace(/\\s+/g, " ");
+      } catch {
+        const preview = recovered.content.slice(0, 500).replace(/\s+/g, " ");
         throw new Error(
           stage + " failed: model " + initial.model + " returned non-JSON output, and recovery model " +
           recovered.model + " also returned non-JSON output. Recovery response preview: " + JSON.stringify(preview),
@@ -69,7 +69,7 @@ const chatJson = async <T>(messages: ChatMessage[], stage: string): Promise<T> =
       }
     } catch (recoveryError) {
       if (recoveryError instanceof Error && recoveryError.message.startsWith(stage + " failed:")) throw recoveryError;
-      const preview = initial.content.slice(0, 500).replace(/\\s+/g, " ");
+      const preview = initial.content.slice(0, 500).replace(/\s+/g, " ");
       const detail = recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
       throw new Error(
         stage + " failed: model " + initial.model + " returned non-JSON output. First response preview: " +
