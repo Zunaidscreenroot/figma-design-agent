@@ -82,7 +82,7 @@ Build the plugin:
 npm run build:plugin
 ```
 
-Then import `apps/plugin/manifest.json` from Figma's Development plugins menu.
+Then import `apps/plugin/manifest.json` from Figma's Development plugins menu. On first launch, run **Figma-only health check** before using the AI workflow. This probe tests Figma API access and temporary frame/text/layout/screenshot actions without calling an AI model; the workflow unlocks after the core checks pass.
 
 ## Safety and accuracy principles
 
@@ -125,3 +125,7 @@ The development build deliberately uses Figma's current dynamic-page-compatible 
 - stronger responsive inference
 - automated benchmark execution against real Figma fixtures
 - production-hosted agent API
+
+## Review and iteration
+
+The plugin performs structural and model-backed quality checks and can run up to two bounded repair cycles. The agent displays per-run critique results, but does not persist review history or preferences between runs. No database or Supabase setup is required.

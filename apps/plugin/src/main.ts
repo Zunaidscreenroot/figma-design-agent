@@ -40,12 +40,43 @@ const serializeNode=async(node:SceneNode,depth=0):Promise<RawNode>=>{
 const collectComponents=async()=>{
   await figma.loadAllPagesAsync();
   const nodes=figma.root.findAllWithCriteria({types:["COMPONENT","COMPONENT_SET"]}as any);
-  return nodes.map((n:any)=>({
-    id:n.id,key:n.key,name:n.name,type:n.type,
-    variantProperties:n.variantGroupProperties??undefined,
-    componentPropertyDefinitions:n.componentPropertyDefinitions??undefined,
-    usageCount:0
-  }));
+  const components:any[]=[];
+
+  for(const n of nodes as any[]){
+    try{
+      const component:any={
+        id:n.id,
+        key:n.key,
+        name:n.name,
+        type:n.type,
+        usageCount:0
+      };
+
+      // A damaged component set can throw when Figma lazily resolves variant metadata.
+      // Skip only that set; continue scanning the rest of the file.
+      if(n.type==="COMPONENT_SET"){
+        try{
+          component.variantProperties=n.variantGroupProperties??undefined;
+          component.componentPropertyDefinitions=n.componentPropertyDefinitions??undefined;
+        }catch(error){
+          console.warn(
+            `[Figma Design Agent] Skipping component set "${n.name}" (${n.id}) because its variant metadata is invalid:`,
+            error instanceof Error?error.message:String(error)
+          );
+          continue;
+        }
+      }
+
+      components.push(component);
+    }catch(error){
+      console.warn(
+        `[Figma Design Agent] Skipping component "${n.name??"unknown"}" during scan:`,
+        error instanceof Error?error.message:String(error)
+      );
+    }
+  }
+
+  return components;
 };
 
 const collectTokens=async()=>{
@@ -160,8 +191,150 @@ const execute=async(a:DesignAction)=>{
   }catch(error){return{actionId:a.id,success:false,error:error instanceof Error?error.message:"Unknown error"}}
 };
 
+type HealthStatus="pass"|"warn"|"fail";
+type HealthCheck={name:string;status:HealthStatus;detail:string};
+
+const errorText=(error:unknown)=>error instanceof Error?error.message:String(error);
+
+const runHealthCheck=async():Promise<HealthCheck[]>=>{
+  const checks:HealthCheck[]=[];
+  const add=(name:string,status:HealthStatus,detail:string)=>checks.push({name,status,detail});
+  let selected:SceneNode[]=[];
+  let components:any[]=[];
+  let probe:FrameNode|undefined;
+
+  let selectedTarget:SceneNode|undefined;
+  try{
+    await figma.currentPage.loadAsync();
+    selected=[...figma.currentPage.selection];
+    selectedTarget=selected.find(node=>["FRAME","COMPONENT","COMPONENT_SET","INSTANCE","SECTION"].includes(node.type))??selected[0];
+    add("Figma plugin runtime","pass","The plugin can call the Figma Plugin API.");
+    const usableSelection=Boolean(selectedTarget&&["FRAME","COMPONENT","COMPONENT_SET","INSTANCE","SECTION"].includes(selectedTarget.type));
+    add(
+      "Selection",
+      usableSelection?"pass":"warn",
+      usableSelection
+        ? `${selected.length} node(s) selected. Target: ${selectedTarget!.name} (${selectedTarget!.type}).`
+        : selected.length
+          ? `Selected node type is ${selected[0].type}. Select a full frame, component, instance, or section—not an individual text/vector child.`
+          : "No selection. Select a frame before running an AI task; the write test can still run."
+    );
+  }catch(error){
+    add("Figma document access","fail",errorText(error));
+  }
+
+  if(selectedTarget){
+    try{
+      await serializeNode(selectedTarget);
+      add("Selected-node serialization","pass","The plugin can read the selected node and its basic structure.");
+    }catch(error){
+      add("Selected-node serialization","fail",errorText(error));
+    }
+    try{
+      const bytes=await selectedTarget.exportAsync({
+        format:"PNG",
+        constraint:{type:"WIDTH",value:800}
+      });
+      add("Selected-node screenshot","pass",`PNG export succeeded (${bytes.length} bytes).`);
+    }catch(error){
+      add("Selected-node screenshot","fail",errorText(error));
+    }
+  }else{
+    add("Selected-node screenshot","warn","Skipped because no node is selected.");
+  }
+
+  try{
+    components=await collectComponents();
+    add("Component scan","pass",`Read ${components.length} usable component(s)/component set(s). Broken variant metadata is skipped where possible.`);
+  }catch(error){
+    add("Component scan","fail",errorText(error));
+  }
+
+  try{
+    const variables=await figma.variables.getLocalVariablesAsync();
+    add("Local variables/tokens","pass",`Variable API is accessible; found ${variables.length} local variable(s).`);
+  }catch(error){
+    add("Local variables/tokens","fail",errorText(error));
+  }
+
+  try{
+    await figma.currentPage.loadAsync();
+    probe=figma.createFrame();
+    probe.name="UX Agent — temporary health check";
+    probe.resize(180,120);
+    probe.x=100000;
+    probe.y=100000;
+    figma.currentPage.appendChild(probe);
+    add("Create/resize/append frame","pass","Created a temporary frame and attached it to the current page.");
+
+    probe.layoutMode="VERTICAL";
+    probe.itemSpacing=4;
+    probe.paddingTop=8;
+    probe.paddingRight=8;
+    probe.paddingBottom=8;
+    probe.paddingLeft=8;
+    add("Auto-layout mutation","pass","Set vertical auto-layout, spacing and padding on the temporary frame.");
+
+    await figma.loadFontAsync({family:"Inter",style:"Regular"});
+    const textNode=figma.createText();
+    textNode.name="Temporary health-check text";
+    textNode.fontSize=12;
+    textNode.characters="Health check";
+    probe.appendChild(textNode);
+    textNode.characters="Health check passed";
+    add("Create/edit text","pass","Loaded Inter Regular, created a text node, and updated its text.");
+
+    probe.resize(200,140);
+    probe.x=100020;
+    probe.y=100020;
+    add("Resize/move mutation","pass","Resized and repositioned the temporary frame.");
+
+    const png=await probe.exportAsync({format:"PNG",constraint:{type:"WIDTH",value:800}});
+    add("Screenshot export","pass",`Temporary-frame PNG export succeeded (${png.length} bytes).`);
+
+    const candidates=components.filter((item:any)=>item.type==="COMPONENT"||item.type==="COMPONENT_SET").slice(0,12);
+    let instancePassed=false;
+    let instanceError="";
+    for(const candidate of candidates){
+      try{
+        const component=await componentById(candidate.id);
+        if(!component)continue;
+        const instance=component.createInstance();
+        probe.appendChild(instance);
+        instance.remove();
+        add("Create component instance","pass",`Successfully created and removed a test instance of "${candidate.name}".`);
+        instancePassed=true;
+        break;
+      }catch(error){
+        instanceError=errorText(error);
+      }
+    }
+    if(!instancePassed){
+      add(
+        "Create component instance",
+        "warn",
+        candidates.length
+          ? "No scanned component could be instantiated in the test. First error: "+(instanceError||"No usable component was found.")
+          : "Skipped because the file contains no usable components."
+      );
+    }
+  }catch(error){
+    add("Temporary write-action test","fail",errorText(error));
+  }finally{
+    try{
+      if(probe&&!probe.removed)probe.remove();
+      add("Cleanup","pass","Removed the temporary test frame and its children.");
+    }catch(error){
+      add("Cleanup","fail","Please remove 'UX Agent — temporary health check' manually. "+errorText(error));
+    }
+  }
+
+  return checks;
+};
+
 figma.ui.onmessage=async(message:any)=>{
   try{
+    if(message.type==="health-check"){figma.ui.postMessage({type:"health-check-report",payload:await runHealthCheck()});return}
     if(message.type==="get-context"){figma.ui.postMessage({type:"context",payload:await collectContext()});return}
     if(message.type==="execute-actions"){
       const results=[] as any[];
