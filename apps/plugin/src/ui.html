@@ -44,10 +44,12 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;ba
 </header>
 
 <label class="section-label" for="endpoint">Agent endpoint</label>
-<input id="endpoint" value="http://localhost:8787" spellcheck="false">
+<input id="endpoint" value="http://127.0.0.1:8787" spellcheck="false">
 <p class="help">Keep the agent server running while Figma is open.</p>
-<button id="health-check" class="secondary" style="width:100%;margin-top:10px">Run Figma-only health check</button>
-<p class="help">Tests Figma access and reversible create/edit/export actions directly. No AI model or agent server is called. The AI workflow unlocks after a successful check.</p>
+<button id="health-check" class="secondary" style="width:100%;margin-top:10px">1. Run Figma-only health check</button>
+<p class="help">Tests Figma reads and reversible actions. It does not contact the server or use AI.</p>
+<button id="agent-check" class="secondary" style="width:100%;margin-top:6px">2. Check local agent connection</button>
+<p class="help">Calls only the local /health endpoint. Confirms the server is reachable and has model configuration; it does not call the model.</p>
 
 <label class="section-label" for="task-type">What are we doing?</label>
 <select id="task-type">
@@ -79,19 +81,36 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;ba
 </details>
 
 <script>
-const state={running:false,prompt:"",taskType:"polished_screen",context:null,screenshot:null,phase:"idle",repairCount:0,lastCritique:null,currentPlan:null,originalSelectionId:null,outputNodeId:null};
+const state={figmaHealthPassed:false,agentConnected:false,agentModelConfigured:false,running:false,prompt:"",taskType:"polished_screen",context:null,screenshot:null,phase:"idle",repairCount:0,lastCritique:null,currentPlan:null,originalSelectionId:null,outputNodeId:null};
 const $=id=>document.getElementById(id);
 const setStatus=t=>$("status").textContent=t;
 const setPill=(t,good=false)=>{$("status-pill").textContent=t;$("status-pill").className="pill"+(good?" good":"");};
 const setDebug=o=>$("debug").textContent=typeof o==="string"?o:JSON.stringify(o,null,2);
-const apiBase=()=>$("endpoint").value.replace(/\/$/,"");
+const apiBase=()=>String($("endpoint")?.value||"http://127.0.0.1:8787").trim().replace(/\/$/,"");
 const plugin=msg=>parent.postMessage({pluginMessage:msg},"*");
 
 async function api(path,body){
-  const response=await fetch(apiBase()+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-  const data=await response.json();
-  if(!response.ok)throw new Error(data.error||"Agent request failed");
+  let response;
+  try{
+    response=await fetch(apiBase()+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  }catch(error){
+    throw new Error(
+      "Could not reach the local agent at "+apiBase()+". "+
+      "Check that 'npm run dev:agent' is running and that the endpoint matches the Terminal. "+
+      "If the server is running, rerun 'Check local agent connection' and inspect CORS/network access. "+
+      (error?.message||String(error))
+    );
+  }
+  let data;
+  try{data=await response.json();}
+  catch{throw new Error("The local agent returned a non-JSON response for "+path+" (HTTP "+response.status+"). Check the agent Terminal logs.");}
+  if(!response.ok)throw new Error(data.error||("Agent request failed (HTTP "+response.status+")"));
   return data;
+}
+function refreshRunButton(){
+  const ready=state.figmaHealthPassed&&state.agentConnected&&state.agentModelConfigured;
+  $("run").disabled=!ready;
+  $("run").textContent=ready?"Run UX workflow":"Run UX workflow (complete both checks first)";
 }
 function makeReviewReady(critique,message){
   state.running=false;
@@ -100,13 +119,52 @@ function makeReviewReady(critique,message){
   setStatus(message);
   setPill(critique&&critique.passed?"QA passed":"Review needed",Boolean(critique&&critique.passed));
 }
+$("agent-check").onclick=async()=>{
+  if(state.running){
+    setStatus("Cancel the current AI workflow before checking the server.");
+    return;
+  }
+  state.agentConnected=false;
+  state.agentModelConfigured=false;
+  refreshRunButton();
+  setPill("Checking agent");
+  setStatus("Checking "+apiBase()+"/health. This does not send an AI request.");
+  try{
+    const response=await fetch(apiBase()+"/health",{method:"GET",cache:"no-store"});
+    let payload={};
+    try{payload=await response.json();}catch{}
+    if(!response.ok){
+      throw new Error("Agent health endpoint returned HTTP "+response.status+".");
+    }
+    state.agentConnected=payload.ok===true;
+    state.agentModelConfigured=payload.modelConfigured===true;
+    setDebug({agentHealth:payload,endpoint:apiBase()});
+    if(!state.agentConnected){
+      setPill("Agent unhealthy");
+      setStatus("The endpoint responded, but did not report ok:true. Check the agent server logs.");
+    }else if(!state.agentModelConfigured){
+      setPill("Model not configured");
+      setStatus("The agent server is reachable, but its health response says the model/API key is not configured. Check OPENROUTER_API_KEY and LLM_MODEL in .env, restart npm run dev:agent, then check again.");
+    }else{
+      setPill("Agent connected",true);
+      setStatus("Local agent is reachable and model configuration is present. No AI request was sent. "+(state.figmaHealthPassed?"Both checks are complete; the AI workflow is unlocked.":"Now run the Figma-only health check to test Figma actions."));
+    }
+    refreshRunButton();
+  }catch(error){
+    state.agentConnected=false;
+    state.agentModelConfigured=false;
+    refreshRunButton();
+    setPill("Agent unavailable");
+    setStatus("Cannot reach "+apiBase()+"/health. In Terminal, start 'npm run dev:agent' from the repository folder and verify 'curl -i http://127.0.0.1:8787/health'. If curl succeeds but this check fails, rebuild/reimport the plugin and check Figma network permissions/CORS. Details: "+(error?.message||String(error)));
+  }
+};
 $("health-check").onclick=()=>{
   if(state.running){
     setStatus("Cancel the current AI workflow before running diagnostics.");
     return;
   }
-  $("run").disabled=true;
-  $("run").textContent="Run UX workflow (health check required)";
+  state.figmaHealthPassed=false;
+  refreshRunButton();
   setPill("Checking Figma");
   setStatus("Running Figma-only checks. No AI request will be sent.");
   setDebug("Checking Figma API access, selection, component/token read access, frame/text/layout mutations, and screenshot export.");
@@ -154,8 +212,8 @@ window.onmessage=async event=>{
       const summary=`${passed.length} passed · ${warnings.length} warning(s) · ${failed.length} failed`;
       const lines=checks.map(item=>`${item.status==="pass"?"PASS":item.status==="warn"?"WARN":"FAIL"} · ${item.name}: ${item.detail}`);
       setDebug({summary,checks,aiWorkflowUnlocked:canRun});
-      $("run").disabled=!canRun;
-      $("run").textContent=canRun?"Run UX workflow":"Run UX workflow (health check required)";
+      state.figmaHealthPassed=canRun;
+      refreshRunButton();
       setPill(failed.length?"Health check failed":canRun?"Figma ready":"Select a frame",canRun);
       const nextStep=failed.length
         ?"Resolve the failed Figma checks before adding model requests."
