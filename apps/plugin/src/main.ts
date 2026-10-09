@@ -307,7 +307,7 @@ const runHealthCheck=async():Promise<HealthCheck[]>=>{
     if(!instancePassed){
       add(
         "Create component instance",
-        candidates.length?"warn":"warn",
+        "warn",
         candidates.length
           ? "No scanned component could be instantiated in the test. First error: "+(instanceError||"No usable component was found.")
           : "Skipped because the file contains no usable components."
@@ -329,7 +329,8 @@ const runHealthCheck=async():Promise<HealthCheck[]>=>{
 
 figma.ui.onmessage=async(message:any)=>{
   try{
-    if(message.type==="health-check"){figma.ui.postMessage({type:"health-check-report",payload:await runHealthCheck()});return}\n    if(message.type==="get-context"){figma.ui.postMessage({type:"context",payload:await collectContext()});return}
+    if(message.type==="health-check"){figma.ui.postMessage({type:"health-check-report",payload:await runHealthCheck()});return}
+    if(message.type==="get-context"){figma.ui.postMessage({type:"context",payload:await collectContext()});return}
     if(message.type==="execute-actions"){
       const results=[] as any[];
       const outputs=new Map<string,string>();
