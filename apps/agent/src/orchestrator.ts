@@ -147,7 +147,6 @@ export class AgentOrchestrator {
     goal: string,
     context: AgentContext,
     screenshotDataUrl?: string,
-    requestedTaskType?: string,
   ): Promise<CritiqueResult> {
     const structural = structuralCritique(context);
     if (!config.apiKey || !config.model) {
@@ -188,7 +187,6 @@ export class AgentOrchestrator {
     goal: string,
     context: AgentContext,
     critique: CritiqueResult,
-    requestedTaskType?: string,
   ): Promise<ActionPlan> {
     if (!config.apiKey || !config.model) {
       return {
