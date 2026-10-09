@@ -44,7 +44,7 @@ pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;ba
 </header>
 
 <label class="section-label" for="endpoint">Agent endpoint</label>
-<input id="endpoint" value="http://127.0.0.1:8787" spellcheck="false">
+<input id="endpoint" value="http://localhost:8787" spellcheck="false">
 <p class="help">Keep the agent server running while Figma is open.</p>
 <button id="health-check" class="secondary" style="width:100%;margin-top:10px">1. Run Figma-only health check</button>
 <p class="help">Tests Figma reads and reversible actions. It does not contact the server or use AI.</p>
@@ -86,7 +86,7 @@ const $=id=>document.getElementById(id);
 const setStatus=t=>$("status").textContent=t;
 const setPill=(t,good=false)=>{$("status-pill").textContent=t;$("status-pill").className="pill"+(good?" good":"");};
 const setDebug=o=>$("debug").textContent=typeof o==="string"?o:JSON.stringify(o,null,2);
-const apiBase=()=>String($("endpoint")?.value||"http://127.0.0.1:8787").trim().replace(/\/$/,"");
+const apiBase=()=>String($("endpoint")?.value||"http://localhost:8787").trim().replace(/\/$/,"");
 const plugin=msg=>parent.postMessage({pluginMessage:msg},"*");
 
 async function api(path,body){
@@ -155,7 +155,7 @@ $("agent-check").onclick=async()=>{
     state.agentModelConfigured=false;
     refreshRunButton();
     setPill("Agent unavailable");
-    setStatus("Cannot reach "+apiBase()+"/health. In Terminal, start 'npm run dev:agent' from the repository folder and verify 'curl -i http://127.0.0.1:8787/health'. If curl succeeds but this check fails, rebuild/reimport the plugin and check Figma network permissions/CORS. Details: "+(error?.message||String(error)));
+    setStatus("Cannot reach "+apiBase()+"/health. In Terminal, start 'npm run dev:agent' from the repository folder and verify 'curl -i http://localhost:8787/health'. If curl succeeds but this check fails, rebuild/reimport the plugin and check Figma network permissions/CORS. Details: "+(error?.message||String(error)));
   }
 };
 $("health-check").onclick=()=>{
