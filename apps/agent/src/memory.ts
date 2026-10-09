@@ -461,7 +461,7 @@ export const formatMemoryForPrompt = (memory: RetrievedMemory): string => {
       memory.examples.map((example) =>
         "- Task: " + example.goal + "\n  Summary: " + example.summary +
         (example.qualityScore != null ? "\n  Previous critique score: " + example.qualityScore : "") +
-        "\n  Context:\n  " + example.contextSummary.replace(/\n/g, "\n  "),
+        "\n  Context:\n  " + example.contextSummary.slice(0, 1800).replace(/\n/g, "\n  "),
       ).join("\n"),
     );
   }
