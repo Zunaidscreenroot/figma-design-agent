@@ -1,5 +1,7 @@
 export const config={
+  host:process.env.AGENT_HOST??"127.0.0.1",
   port:Number(process.env.PORT??8787),
+  allowedOrigins:(process.env.AGENT_ALLOWED_ORIGINS??"https://www.figma.com,https://figma.com,http://localhost:8787,http://127.0.0.1:8787").split(",").map(v=>v.trim()).filter(Boolean),
   apiKey:process.env.OPENROUTER_API_KEY??process.env.LLM_API_KEY??"",
   baseUrl:(process.env.LLM_BASE_URL??"https://openrouter.ai/api/v1").replace(/\/$/,""),
   model:process.env.LLM_MODEL??"qwen/qwen3.8-27b:free",
