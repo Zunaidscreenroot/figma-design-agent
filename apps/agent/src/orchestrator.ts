@@ -7,7 +7,7 @@ import type {
 import { guardPlan, validateActionPlan } from "@figma-design-agent/core";
 import { structuralCritique } from "./critics.js";
 import { config } from "./config.js";
-import { chat, extractJson } from "./provider.js";
+import { chat, extractJson, type ChatMessage } from "./provider.js";
 import { loadSkills } from "./skills.js";
 import { rankComponents } from "./retrieval.js";
 import {
@@ -25,6 +25,59 @@ const resolveTaskType = (explicit: unknown, goal: string): string => {
   if (/content|copy|microcopy|labels|helper text|empty state|error message/.test(value)) return "content_states";
   if (/mobile|responsive|desktop to mobile|small screen/.test(value)) return "mobile_conversion";
   return "polished_screen";
+};
+
+const responseText = (messages: ChatMessage[]) => messages.map((message) => {
+  if (typeof message.content === "string") return message.role + ": " + message.content;
+  return message.role + ": " + message.content
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\\n");
+}).join("\\n\\n").slice(0, 18000);
+
+const chatJson = async <T>(messages: ChatMessage[], stage: string): Promise<T> => {
+  const initial = await chat(messages);
+  try {
+    return extractJson<T>(initial.content);
+  } catch (initialError) {
+    const requestSummary = responseText(messages);
+    const recoveryMessages: ChatMessage[] = [
+      {
+        role: "system",
+        content: "You repair model responses for a software agent. Return exactly one valid JSON object only. Do not include markdown fences, analysis, commentary, or <think> tags. Preserve the required schema from the request. Do not invent unknown identifiers or facts.",
+      },
+      {
+        role: "user",
+        content:
+          "The previous response could not be parsed as a JSON object. Re-issue the response required by the original request below as one valid JSON object. If you cannot satisfy a field, use a safe empty/default value permitted by the schema. Do not explain.\\n\\nOriginal request (text only; attached images omitted):\\n" +
+          requestSummary +
+          "\\n\\nInvalid prior response:\\n" +
+          initial.content.slice(0, 8000),
+      },
+    ];
+
+    try {
+      const recovered = await chat(recoveryMessages);
+      try {
+        return extractJson<T>(recovered.content);
+      } catch (recoveryError) {
+        const preview = recovered.content.slice(0, 500).replace(/\\s+/g, " ");
+        throw new Error(
+          stage + " failed: model " + initial.model + " returned non-JSON output, and recovery model " +
+          recovered.model + " also returned non-JSON output. Recovery response preview: " + JSON.stringify(preview),
+        );
+      }
+    } catch (recoveryError) {
+      if (recoveryError instanceof Error && recoveryError.message.startsWith(stage + " failed:")) throw recoveryError;
+      const preview = initial.content.slice(0, 500).replace(/\\s+/g, " ");
+      const detail = recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
+      throw new Error(
+        stage + " failed: model " + initial.model + " returned non-JSON output. First response preview: " +
+        JSON.stringify(preview) + ". Recovery attempt failed: " + detail +
+        (initialError instanceof Error ? " (parse: " + initialError.message + ")" : ""),
+      );
+    }
+  }
 };
 
 const multimodalContent = (text: string, currentScreenshot?: string) => {
@@ -121,12 +174,10 @@ export class AgentOrchestrator {
 
     if (config.apiKey && config.model) {
       const prompt = buildPlanPrompt(goal, context, rankComponents(goal, context), taskType);
-      plan = extractJson<ActionPlan>(
-        (await chat([
-          { role: "system", content: systemPrompt },
-          { role: "user", content: multimodalContent(prompt) as never },
-        ])).content,
-      );
+      plan = await chatJson<ActionPlan>([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: multimodalContent(prompt) as never },
+      ], "Plan generation");
     } else {
       plan = fallbackPlan(goal, context);
     }
@@ -167,12 +218,10 @@ export class AgentOrchestrator {
 
     const prompt = buildCritiquePrompt(goal, context, screenshotDataUrl);
     const userContent = multimodalContent(prompt, screenshotDataUrl);
-    const modelCritique = extractJson<CritiqueResult>(
-      (await chat([
-        { role: "system", content: buildSystemPrompt(await loadSkills()) },
-        { role: "user", content: userContent as never },
-      ])).content,
-    );
+    const modelCritique = await chatJson<CritiqueResult>([
+      { role: "system", content: buildSystemPrompt(await loadSkills()) },
+      { role: "user", content: userContent as never },
+    ], "Visual critique");
     const issues = [...structural.issues, ...modelCritique.issues];
     const hasError = issues.some((issue) => issue.severity === "error");
     return {
@@ -201,12 +250,10 @@ export class AgentOrchestrator {
     }
 
     const prompt = buildRepairPrompt(goal, context, critique);
-    const plan = extractJson<ActionPlan>(
-      (await chat([
-        { role: "system", content: buildSystemPrompt(await loadSkills()) },
-        { role: "user", content: multimodalContent(prompt) as never },
-      ])).content,
-    );
+    const plan = await chatJson<ActionPlan>([
+      { role: "system", content: buildSystemPrompt(await loadSkills()) },
+      { role: "user", content: multimodalContent(prompt) as never },
+    ], "Design repair");
 
     const issues = validateActionPlan(plan, context, config.maxActions);
     const guardErrors = guardPlan(plan, config.maxActions);
