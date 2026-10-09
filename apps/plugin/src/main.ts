@@ -40,12 +40,43 @@ const serializeNode=async(node:SceneNode,depth=0):Promise<RawNode>=>{
 const collectComponents=async()=>{
   await figma.loadAllPagesAsync();
   const nodes=figma.root.findAllWithCriteria({types:["COMPONENT","COMPONENT_SET"]}as any);
-  return nodes.map((n:any)=>({
-    id:n.id,key:n.key,name:n.name,type:n.type,
-    variantProperties:n.variantGroupProperties??undefined,
-    componentPropertyDefinitions:n.componentPropertyDefinitions??undefined,
-    usageCount:0
-  }));
+  const components:any[]=[];
+
+  for(const n of nodes as any[]){
+    try{
+      const component:any={
+        id:n.id,
+        key:n.key,
+        name:n.name,
+        type:n.type,
+        usageCount:0
+      };
+
+      // A damaged component set can throw when Figma lazily resolves variant metadata.
+      // Skip only that set; continue scanning the rest of the file.
+      if(n.type==="COMPONENT_SET"){
+        try{
+          component.variantProperties=n.variantGroupProperties??undefined;
+          component.componentPropertyDefinitions=n.componentPropertyDefinitions??undefined;
+        }catch(error){
+          console.warn(
+            `[Figma Design Agent] Skipping component set "${n.name}" (${n.id}) because its variant metadata is invalid:`,
+            error instanceof Error?error.message:String(error)
+          );
+          continue;
+        }
+      }
+
+      components.push(component);
+    }catch(error){
+      console.warn(
+        `[Figma Design Agent] Skipping component "${n.name??"unknown"}" during scan:`,
+        error instanceof Error?error.message:String(error)
+      );
+    }
+  }
+
+  return components;
 };
 
 const collectTokens=async()=>{
