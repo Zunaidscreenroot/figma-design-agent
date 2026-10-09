@@ -126,15 +126,6 @@ The development build deliberately uses Figma's current dynamic-page-compatible 
 - automated benchmark execution against real Figma fixtures
 - production-hosted agent API
 
-## Persistent UX memory (optional)
+## Review and iteration
 
-Configure Supabase PostgreSQL to let the agent learn from reviewed work:
-
-1. Apply the SQL migration at supabase/migrations/202610090001_ux_design_memory.sql.
-2. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the agent server environment.
-3. Set UX_MEMORY_PROJECT_KEY to isolate examples by product/project.
-4. Run the agent, then use Accept / Needs changes / Reject in the plugin review panel.
-
-Accepted designs become positive examples; revised/rejected examples preserve feedback as warnings. Selecting the reusable-rule checkbox explicitly saves that feedback as an approved rule. Review screenshots are stored in a private Supabase Storage bucket when possible. This is retrieval-based learning, not automatic model fine-tuning.
-
-Do not expose the Supabase service-role key in plugin or browser code. Visual reference screenshots are sent back to the model only when UX_MEMORY_VISUAL_REFERENCES=true and a vision-capable model is configured.
+The plugin performs structural and model-backed quality checks and can run up to two bounded repair cycles. Review feedback is session-only in this version and is not persisted between runs. No database or Supabase setup is required.
