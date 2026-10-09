@@ -41,11 +41,14 @@ const server = createServer(async (req, res) => {
         context: contextOf(body.context), verdict: body.verdict as ReviewVerdict, note: String(body.note ?? "") });
       send(res, result.saved || !result.memoryEnabled ? 200 : 503, result); return;
     }
-    if (req.method === "POST" && req.url === "/plan") { send(res, 200, await agent.plan(body.prompt, contextOf(body.context))); return; }
+    if (req.method === "POST" && req.url === "/plan") {
+      const screenshots = Array.isArray(body.screenshotDataUrls) ? body.screenshotDataUrls.slice(0, 3) : [];
+      send(res, 200, await agent.plan(String(body.prompt ?? ""), contextOf(body.context), screenshots)); return;
+    }
     if (req.method === "POST" && req.url === "/critique") { send(res, 200, await agent.critique(body.prompt, contextOf(body.context), body.screenshotDataUrl)); return; }
     if (req.method === "POST" && req.url === "/repair") { send(res, 200, await agent.repair(body.prompt, contextOf(body.context), body.critique)); return; }
     send(res, 404, { error: "Not found" });
-  } catch (error) { send(res, 500, { error: error instanceof Error ? error.message : "Unknown server error" }); }
+  } catch (error) { send(res, 500, { error: error instanceof Error ? error.message : "Unknown error" }); }
 });
 if (config.production && !config.apiToken) throw new Error("AGENT_API_TOKEN must be configured in production.");
 server.listen(config.port, () => console.log("Figma Design Agent API listening on http://localhost:" + config.port));
