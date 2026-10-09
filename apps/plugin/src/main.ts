@@ -203,30 +203,35 @@ const runHealthCheck=async():Promise<HealthCheck[]>=>{
   let components:any[]=[];
   let probe:FrameNode|undefined;
 
+  let selectedTarget:SceneNode|undefined;
   try{
     await figma.currentPage.loadAsync();
     selected=[...figma.currentPage.selection];
+    selectedTarget=selected.find(node=>["FRAME","COMPONENT","COMPONENT_SET","INSTANCE","SECTION"].includes(node.type))??selected[0];
     add("Figma plugin runtime","pass","The plugin can call the Figma Plugin API.");
+    const usableSelection=Boolean(selectedTarget&&["FRAME","COMPONENT","COMPONENT_SET","INSTANCE","SECTION"].includes(selectedTarget.type));
     add(
       "Selection",
-      selected.length?"pass":"warn",
-      selected.length
-        ? `${selected.length} node(s) selected. First: ${selected[0].name} (${selected[0].type}).`
-        : "No selection. Select a frame before running an AI task; the write test can still run."
+      usableSelection?"pass":"warn",
+      usableSelection
+        ? `${selected.length} node(s) selected. Target: ${selectedTarget!.name} (${selectedTarget!.type}).`
+        : selected.length
+          ? `Selected node type is ${selected[0].type}. Select a full frame, component, instance, or section—not an individual text/vector child.`
+          : "No selection. Select a frame before running an AI task; the write test can still run."
     );
   }catch(error){
     add("Figma document access","fail",errorText(error));
   }
 
-  if(selected[0]){
+  if(selectedTarget){
     try{
-      await serializeNode(selected[0]);
+      await serializeNode(selectedTarget);
       add("Selected-node serialization","pass","The plugin can read the selected node and its basic structure.");
     }catch(error){
       add("Selected-node serialization","fail",errorText(error));
     }
     try{
-      const bytes=await selected[0].exportAsync({
+      const bytes=await selectedTarget.exportAsync({
         format:"PNG",
         constraint:{type:"WIDTH",value:800}
       });
