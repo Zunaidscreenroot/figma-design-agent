@@ -2,69 +2,261 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Figma Design Agent</title>
 <style>
-:root{font-family:Inter,system-ui,sans-serif;color:#171717;background:#fff}
+:root{font-family:Inter,system-ui,-apple-system,sans-serif;color:#171717;background:#fff;font-size:12px}
+*{box-sizing:border-box}
 body{margin:0;padding:16px}
-h1{font-size:16px;margin:0 0 4px}
-p{font-size:12px;color:#666;margin:0 0 14px}
-input,textarea{box-sizing:border-box;width:100%;border:1px solid #d6d6d6;border-radius:8px;padding:10px;font:inherit;margin:4px 0 10px}
-textarea{min-height:120px;resize:vertical}
-button{width:100%;padding:10px;border:0;border-radius:8px;margin:4px 0;cursor:pointer}
-#run{background:#111;color:#fff}
-#cancel{background:#eee}
-#status{font-size:12px;line-height:1.5;white-space:pre-wrap;margin-top:10px}
-pre{background:#f6f6f6;border-radius:8px;padding:8px;font-size:10px;max-height:220px;overflow:auto}
+header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.mark{width:32px;height:32px;border-radius:10px;background:#171717;color:#fff;display:grid;place-items:center;font-weight:700;font-size:15px}
+h1{font-size:15px;margin:0 0 3px;letter-spacing:-.2px}
+.subtitle{font-size:11px;color:#737373;margin:0;line-height:1.4}
+.section-label{display:block;font-size:11px;font-weight:650;margin:13px 0 5px;color:#404040}
+input,select,textarea{width:100%;border:1px solid #d8d8d8;border-radius:8px;background:#fff;padding:9px 10px;font:inherit;color:#171717;outline:none}
+input:focus,select:focus,textarea:focus{border-color:#777;box-shadow:0 0 0 2px #0000000a}
+textarea{min-height:96px;resize:vertical;line-height:1.5}
+.help{font-size:10px;color:#737373;line-height:1.4;margin:5px 0 0}
+.mode-note{background:#f6f6f6;border-radius:8px;padding:9px 10px;font-size:11px;line-height:1.45;color:#525252;margin:10px 0}
+button{font:inherit;border:0;border-radius:8px;padding:10px 12px;cursor:pointer;font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed}
+.primary{width:100%;background:#171717;color:white;margin-top:10px}
+.secondary{background:#f0f0f0;color:#171717}
+.button-row{display:flex;gap:7px;margin-top:8px}
+.button-row button{flex:1}
+.status-card{margin-top:12px;border:1px solid #e8e8e8;border-radius:9px;padding:10px}
+.status-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
+.status-title{font-weight:650;font-size:11px}
+.pill{border-radius:99px;padding:3px 7px;font-size:9px;background:#f0f0f0;color:#525252;white-space:nowrap}
+.pill.good{background:#e7f5eb;color:#176b35}
+#status{white-space:pre-wrap;font-size:11px;line-height:1.5;color:#525252}
+pre{white-space:pre-wrap;word-break:break-word;max-height:170px;overflow:auto;background:#f7f7f7;border-radius:8px;padding:9px;font-size:9px;line-height:1.45;color:#555;margin:10px 0 0}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
-<h1>Figma Design Agent</h1>
-<p>Inspect → plan → execute → verify → repair</p>
-<label>Agent endpoint</label>
-<input id="endpoint" value="http://localhost:8787">
-<label>Design task</label>
-<textarea id="prompt" placeholder="Convert this desktop screen into mobile using the existing design system."></textarea>
-<button id="run">Run agent</button>
-<button id="cancel">Cancel</button>
-<div id="status">Ready.</div>
-<pre id="debug"></pre>
+<header>
+  <div class="mark">U</div>
+  <div>
+    <h1>UX Design Agent</h1>
+    <p class="subtitle">Plan → design → verify</p>
+  </div>
+</header>
+
+<label class="section-label" for="endpoint">Agent endpoint</label>
+<input id="endpoint" value="http://localhost:8787" spellcheck="false">
+<p class="help">Keep the agent server running while Figma is open.</p>
+<button id="health-check" class="secondary" style="width:100%;margin-top:10px">1. Run Figma-only health check</button>
+<p class="help">Tests Figma reads and reversible actions. It does not contact the server or use AI.</p>
+<button id="agent-check" class="secondary" style="width:100%;margin-top:6px">2. Check local agent connection</button>
+<p class="help">Calls only the local /health endpoint. Confirms the server is reachable and has model configuration; it does not call the model.</p>
+
+<label class="section-label" for="task-type">What are we doing?</label>
+<select id="task-type">
+  <option value="polished_screen">Create / refine polished UX screen</option>
+  <option value="variations">Generate design variations</option>
+  <option value="content_states">Fill content and UI states</option>
+  <option value="ux_audit">Audit a design</option>
+  <option value="mobile_conversion">Convert to mobile / responsive</option>
+</select>
+<div class="mode-note">“Wireframe” means a polished, review-ready UX screen here—not a generic grayscale sketch. The agent should follow your references and existing design system.</div>
+
+<label class="section-label" for="prompt">Task brief</label>
+<textarea id="prompt" placeholder="Example: Create a polished loan-offer comparison screen from the selected frame. Preserve existing components, show the total cost clearly, make the recommended option easy to compare, and include relevant validation states."></textarea>
+<button id="run" class="primary" disabled>Run UX workflow (health check required)</button>
+<button id="cancel" class="secondary" style="width:100%;margin-top:6px">Cancel current run</button>
+
+<div class="status-card">
+  <div class="status-head">
+    <span class="status-title">Workflow status</span>
+    <span id="status-pill" class="pill">Ready</span>
+  </div>
+  <div id="status">Select a frame in Figma, describe the task, and run the workflow.</div>
+</div>
+
+
+<details style="margin-top:12px">
+  <summary style="font-size:10px;color:#737373;cursor:pointer">Technical details</summary>
+  <pre id="debug">No workflow has run yet.</pre>
+</details>
+
 <script>
-const state={running:false,prompt:"",context:null,screenshot:null,phase:"idle",repairCount:0};
+const state={figmaHealthPassed:false,agentConnected:false,agentModelConfigured:false,running:false,prompt:"",taskType:"polished_screen",context:null,screenshot:null,phase:"idle",repairCount:0,lastCritique:null,currentPlan:null,originalSelectionId:null,outputNodeId:null};
 const $=id=>document.getElementById(id);
 const setStatus=t=>$("status").textContent=t;
+const setPill=(t,good=false)=>{$("status-pill").textContent=t;$("status-pill").className="pill"+(good?" good":"");};
 const setDebug=o=>$("debug").textContent=typeof o==="string"?o:JSON.stringify(o,null,2);
-const apiBase=()=>$("endpoint").value.replace(/\/$/,"");
+const apiBase=()=>String($("endpoint")?.value||"http://localhost:8787").trim().replace(/\/$/,"");
 const plugin=msg=>parent.postMessage({pluginMessage:msg},"*");
+
 async function api(path,body){
-  const response=await fetch(apiBase()+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
-  const data=await response.json();
-  if(!response.ok)throw new Error(data.error||"Agent request failed");
+  let response;
+  try{
+    response=await fetch(apiBase()+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  }catch(error){
+    throw new Error(
+      "Could not reach the local agent at "+apiBase()+". "+
+      "Check that 'npm run dev:agent' is running and that the endpoint matches the Terminal. "+
+      "If the server is running, rerun 'Check local agent connection' and inspect CORS/network access. "+
+      (error?.message||String(error))
+    );
+  }
+  let data;
+  try{data=await response.json();}
+  catch{throw new Error("The local agent returned a non-JSON response for "+path+" (HTTP "+response.status+"). Check the agent Terminal logs.");}
+  if(!response.ok)throw new Error(data.error||("Agent request failed (HTTP "+response.status+")"));
   return data;
 }
+function refreshRunButton(){
+  const ready=state.figmaHealthPassed&&state.agentConnected&&state.agentModelConfigured;
+  $("run").disabled=!ready;
+  $("run").textContent=ready?"Run UX workflow":"Run UX workflow (complete both checks first)";
+}
+function makeReviewReady(critique,message){
+  state.running=false;
+  state.phase="review";
+  state.lastCritique=critique;
+  setStatus(message);
+  setPill(critique&&critique.passed?"QA passed":"Review needed",Boolean(critique&&critique.passed));
+}
+$("agent-check").onclick=async()=>{
+  if(state.running){
+    setStatus("Cancel the current AI workflow before checking the server.");
+    return;
+  }
+  state.agentConnected=false;
+  state.agentModelConfigured=false;
+  refreshRunButton();
+  setPill("Checking agent");
+  setStatus("Checking "+apiBase()+"/health. This does not send an AI request.");
+  try{
+    const response=await fetch(apiBase()+"/health",{method:"GET",cache:"no-store"});
+    let payload={};
+    try{payload=await response.json();}catch{}
+    if(!response.ok){
+      throw new Error("Agent health endpoint returned HTTP "+response.status+".");
+    }
+    state.agentConnected=payload.ok===true;
+    state.agentModelConfigured=payload.modelConfigured===true;
+    setDebug({agentHealth:payload,endpoint:apiBase()});
+    if(!state.agentConnected){
+      setPill("Agent unhealthy");
+      setStatus("The endpoint responded, but did not report ok:true. Check the agent server logs.");
+    }else if(!state.agentModelConfigured){
+      setPill("Model not configured");
+      setStatus("The agent server is reachable, but its health response says the model/API key is not configured. Check OPENROUTER_API_KEY and LLM_MODEL in .env, restart npm run dev:agent, then check again.");
+    }else{
+      setPill("Agent connected",true);
+      setStatus("Local agent is reachable and model configuration is present. No AI request was sent. "+(state.figmaHealthPassed?"Both checks are complete; the AI workflow is unlocked.":"Now run the Figma-only health check to test Figma actions."));
+    }
+    refreshRunButton();
+  }catch(error){
+    state.agentConnected=false;
+    state.agentModelConfigured=false;
+    refreshRunButton();
+    setPill("Agent unavailable");
+    setStatus("Cannot reach "+apiBase()+"/health. In Terminal, start 'npm run dev:agent' from the repository folder and verify 'curl -i http://localhost:8787/health'. If curl succeeds but this check fails, rebuild/reimport the plugin and check Figma network permissions/CORS. Details: "+(error?.message||String(error)));
+  }
+};
+$("health-check").onclick=()=>{
+  if(state.running){
+    setStatus("Cancel the current AI workflow before running diagnostics.");
+    return;
+  }
+  state.figmaHealthPassed=false;
+  refreshRunButton();
+  setPill("Checking Figma");
+  setStatus("Running Figma-only checks. No AI request will be sent.");
+  setDebug("Checking Figma API access, selection, component/token read access, frame/text/layout mutations, and screenshot export.");
+  plugin({type:"health-check"});
+};
 $("run").onclick=()=>{
   if(state.running)return;
-  state.prompt=$("prompt").value.trim();
-  if(!state.prompt){setStatus("Enter a task.");return}
-  state.running=true;state.phase="planning";state.repairCount=0;setStatus("Inspecting Figma…");plugin({type:"get-context"});
+  if(!state.figmaHealthPassed||!state.agentConnected||!state.agentModelConfigured){
+    setStatus("Run both checks first: Figma-only health check, then local agent connection check.");
+    refreshRunButton();
+    return;
+  }
+  const promptField=$("prompt");
+  state.prompt=typeof promptField?.value==="string"?promptField.value.trim():"";
+  state.taskType=$("task-type").value;
+  if(!state.prompt){setStatus("Enter a task brief first.");return;}
+  state.running=true;
+  state.phase="planning";
+  state.repairCount=0;
+  state.context=null;
+  state.screenshot=null;
+  state.currentPlan=null;
+  state.originalSelectionId=null;
+  state.outputNodeId=null;
+  state.lastCritique=null;
+  setPill("Working");
+  setStatus("Inspecting selected Figma frames and components…");
+  setDebug("Collecting design context.");
+  plugin({type:"get-context"});
 };
-$("cancel").onclick=()=>{state.running=false;setStatus("Cancelled.");};
+$("cancel").onclick=()=>{
+  state.running=false;
+  state.phase="idle";
+  setPill("Cancelled");
+  setStatus("Cancelled. Any design changes already executed remain in the Figma document.");
+};
 window.onmessage=async event=>{
-  const m=event.data.pluginMessage;if(!m)return;
+  const m=event.data.pluginMessage;
+  if(!m)return;
   try{
+    if(m.type==="health-check-report"){
+      const checks=Array.isArray(m.payload)?m.payload:[];
+      const failed=checks.filter(item=>item.status==="fail");
+      const warnings=checks.filter(item=>item.status==="warn");
+      const passed=checks.filter(item=>item.status==="pass");
+      const hasSelection=checks.some(item=>item.name==="Selection"&&item.status==="pass");
+      const writePassed=checks.some(item=>item.name==="Create/resize/append frame"&&item.status==="pass")&&checks.some(item=>item.name==="Auto-layout mutation"&&item.status==="pass")&&checks.some(item=>item.name==="Create/edit text"&&item.status==="pass");
+      const screenshotPassed=checks.some(item=>item.name==="Screenshot export"&&item.status==="pass");
+      const canRun=failed.length===0&&hasSelection&&writePassed&&screenshotPassed;
+      const summary=`${passed.length} passed · ${warnings.length} warning(s) · ${failed.length} failed`;
+      const lines=checks.map(item=>`${item.status==="pass"?"PASS":item.status==="warn"?"WARN":"FAIL"} · ${item.name}: ${item.detail}`);
+      setDebug({summary,checks,aiWorkflowUnlocked:canRun});
+      state.figmaHealthPassed=canRun;
+      refreshRunButton();
+      setPill(failed.length?"Health check failed":canRun?"Figma ready":"Select a frame",canRun);
+      const nextStep=failed.length
+        ?"Resolve the failed Figma checks before adding model requests."
+        :!hasSelection
+          ?"Select a frame, then run the Figma-only health check again."
+          :!canRun
+            ?"The required write or screenshot check did not pass. Inspect the failed checks above."
+            :"Figma actions passed. The AI workflow is now unlocked.";
+      setStatus("Figma-only health check complete. "+summary+"\n"+nextStep+"\n\n"+lines.join("\n"));
+      return;
+    }
+    if(m.type==="plugin-error"){
+      state.running=false;
+      setPill("Error");
+      setStatus(m.payload||"Figma plugin error");
+      return;
+    }
     if(m.type==="context"){
-      state.context=m.payload;setDebug(m.payload);
+      state.context=m.payload;
+      if(state.phase==="planning")state.originalSelectionId=m.payload.selectedNodes?.[0]?.id||null;
+      setDebug({selection:m.payload.selectedNodes?.map(n=>({id:n.id,name:n.name,type:n.type})),components:m.payload.components?.length,tokens:m.payload.tokens?.length});
       if(!state.running)return;
       if(state.phase==="planning"){
-        setStatus("Planning…");
-        const plan=await api("/plan",{prompt:state.prompt,context:m.payload});
+        setStatus("Planning native Figma actions…");
+        const plan=await api("/plan",{prompt:state.prompt,taskType:state.taskType,context:m.payload});
         setDebug(plan);
-        if(!plan.actions?.length){state.running=false;setStatus("No safe actions generated.");return}
-        setStatus("Executing "+plan.actions.length+" action(s)…");
+        state.currentPlan=plan;
+        if(!plan.actions?.length){
+          state.running=false;setPill("No actions");
+          setStatus("No safe actions generated. Check that a target frame is selected and that the task permits a concrete change.");
+          return;
+        }
+        setStatus("Executing "+plan.actions.length+" design action(s)…");
         plugin({type:"execute-actions",actions:plan.actions});
         return;
       }
       if(state.phase==="verifying"){
-        setStatus("Capturing the updated design…");
+        setStatus("Capturing the updated design for visual and structural verification…");
         plugin({type:"capture-selection"});
         return;
       }
@@ -72,28 +264,61 @@ window.onmessage=async event=>{
     if(m.type==="execution-report"){
       setDebug(m.payload);
       if(!state.running)return;
-      const failed=m.payload.results.filter(x=>!x.success);
-      if(failed.length){state.running=false;setStatus("Execution failed:\n"+failed.map(x=>x.error).join("\n"));return}
-      const firstNode=m.payload.results.flatMap(x=>x.nodeIds||[])[0];
-      if(firstNode)plugin({type:"select-node",nodeId:firstNode});
+      const results=m.payload.results||[];
+      const failed=results.filter(x=>!x.success);
+      if(failed.length){
+        state.running=false;setPill("Execution error");
+        setStatus("Some actions failed:\n"+failed.map(x=>x.error).join("\n"));
+        return;
+      }
+      const createsOutput=new Set((state.currentPlan?.actions||[]).filter(a=>a.action==="create_frame"||a.action==="create_section").map(a=>a.id));
+      const createdFrame=results.find(x=>createsOutput.has(x.actionId)&&x.nodeIds?.[0])?.nodeIds?.[0];
+      if(createdFrame)state.outputNodeId=createdFrame;
+      const targetNodeId=state.outputNodeId||state.originalSelectionId||results.flatMap(x=>x.nodeIds||[])[0];
+      if(targetNodeId)plugin({type:"select-node",nodeId:targetNodeId});
       state.phase="verifying";
-      setStatus("Re-reading the updated design…");plugin({type:"get-context"});return;
+      setStatus("Re-reading the updated design…");
+      plugin({type:"get-context"});
+      return;
     }
     if(m.type==="capture"){
       state.screenshot=m.payload;
-      setStatus("Visual + UX verification…");
-      const critique=await api("/critique",{prompt:state.prompt,context:state.context,screenshotDataUrl:state.screenshot});
+      setStatus("Running visual, UX and structural quality checks…");
+      const critique=await api("/critique",{
+        prompt:state.prompt,taskType:state.taskType,context:state.context,screenshotDataUrl:state.screenshot
+      });
+      state.lastCritique=critique;
       setDebug(critique);
-      const blocking=critique.issues?.some(i=>i.severity==="error");
-      if(!blocking){state.running=false;setStatus("Complete. Verification gate passed.");return}
-      setStatus("Repairing detected issues…");
-      const repair=await api("/repair",{prompt:state.prompt,context:state.context,critique});
+      const blocking=critique.passed===false||critique.issues?.some(i=>i.severity==="error");
+      if(!blocking){
+        makeReviewReady(critique,"Quality checks passed. Review the result directly in Figma.");
+        return;
+      }
+      if(state.repairCount>=2){
+        makeReviewReady(critique,"The agent reached its repair limit. Review this draft in Figma; QA has not passed.");
+        return;
+      }
+      state.repairCount+=1;
+      setPill("Repair "+state.repairCount+"/2");
+      setStatus("Repairing evidence-backed issues (attempt "+state.repairCount+" of 2)…");
+      const repair=await api("/repair",{
+        prompt:state.prompt,taskType:state.taskType,context:state.context,critique:critique
+      });
       setDebug(repair);
-      if(!repair.actions?.length){state.running=false;setStatus("No safe repair actions generated.");return}
-      plugin({type:"execute-actions",actions:repair.actions});return;
+      if(!repair.actions?.length){
+        makeReviewReady(critique,"The critic found issues but no safe automatic repair was produced. Review this draft in Figma.");
+        return;
+      }
+      state.currentPlan=repair;
+      plugin({type:"execute-actions",actions:repair.actions});
+      return;
     }
-  }catch(error){state.running=false;state.phase="idle";setStatus(error?.message||String(error));}
+  }catch(error){
+    state.running=false;state.phase="idle";setPill("Error");
+    setStatus(error?.message||String(error));
+  }
 };
+
 </script>
 </body>
 </html>

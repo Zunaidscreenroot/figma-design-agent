@@ -1,21 +1,22 @@
 {
-  "name":"@figma-design-agent/agent",
-  "version":"0.1.0",
-  "private":true,
-  "type":"module",
-  "scripts":{
-    "dev":"npm run build:core && node --env-file=../../.env --import=tsx src/server.ts",
-    "build:core":"npm run build --workspace=@figma-design-agent/core",
-    "build":"tsc -p tsconfig.build.json",
-    "typecheck":"tsc -p tsconfig.json --noEmit",
-    "test:openrouter":"node --env-file=../../.env --import=tsx src/test-openrouter.ts"
+  "name": "@figma-design-agent/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build:core && node --env-file=../../.env --import=tsx src/server.ts",
+    "build:core": "npm run build --workspace=@figma-design-agent/core",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:openrouter": "node --env-file=../../.env --import=tsx src/test-openrouter.ts"
   },
-  "dependencies":{
-    "@figma-design-agent/core":"0.1.0",
-    "@openrouter/sdk":"^1.2.51"
+  "dependencies": {
+    "@figma-design-agent/core": "0.1.0",
+    "@openrouter/sdk": "^1.2.51"
   },
-  "devDependencies":{
-    "tsx":"^4.19.2",
-    "typescript":"^5.7.2"
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.15.30"
   }
 }
