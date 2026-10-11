@@ -1,13 +1,18 @@
 {
-  "name":"Figma Design Agent",
-  "id":"figma-design-agent-zunaidscreenroot",
-  "api":"1.0.0",
-  "main":"dist/code.js",
-  "ui":"dist/ui.html",
-  "editorType":["figma"],
-  "documentAccess":"dynamic-page",
-  "networkAccess":{
-    "allowedDomains":["none"],
-    "devAllowedDomains":["http://localhost:8787"]
+  "name": "Figma Design Agent",
+  "id": "figma-design-agent-zunaidscreenroot",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": [
+      "https://uxdirect.netlify.app",
+      "https://*.netlify.app"
+    ],
+    "devAllowedDomains": [
+      "http://localhost:8787"
+    ]
   }
 }
