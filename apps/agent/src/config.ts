@@ -1,9 +1,14 @@
+const csv=(value:string|undefined,fallback:string[])=>Array.from(new Set((value??fallback.join(",")).split(",").map(v=>v.trim()).filter(Boolean)));
 export const config={
   port:Number(process.env.PORT??8787),
   apiKey:process.env.OPENROUTER_API_KEY??process.env.LLM_API_KEY??"",
+  openRouterApiKey:process.env.OPENROUTER_API_KEY??process.env.LLM_API_KEY??"",
+  geminiApiKey:process.env.GEMINI_API_KEY??process.env.GOOGLE_API_KEY??"",
+  geminiModels:csv(process.env.GEMINI_MODELS,["gemini-2.5-flash","gemini-2.5-flash-lite"]),
+  openRouterModels:csv(process.env.OPENROUTER_MODELS,["qwen/qwen3.8-27b:free","google/gemma-3-27b-it:free","openrouter/free"]),
   baseUrl:(process.env.LLM_BASE_URL??"https://openrouter.ai/api/v1").replace(/\/$/,""),
   model:process.env.LLM_MODEL??"qwen/qwen3.8-27b:free",
-  fallbackModels:(process.env.LLM_FALLBACK_MODELS??"openrouter/free,dots-studio/dots3-note-preview:free").split(",").map(v=>v.trim()).filter(Boolean),
+  fallbackModels:csv(process.env.LLM_FALLBACK_MODELS,["openrouter/free","dots-studio/dots3-note-preview:free"]),
   temperature:Number(process.env.LLM_TEMPERATURE??0.1),
   maxTokens:Number(process.env.LLM_MAX_TOKENS??6000),
   retries:Number(process.env.LLM_RETRIES??1),
